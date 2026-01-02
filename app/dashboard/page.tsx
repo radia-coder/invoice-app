@@ -1,10 +1,13 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { format } from 'date-fns';
-import { FileText, Plus } from 'lucide-react';
+import { FileText, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import InvoiceActions from '@/components/InvoiceActions';
 import { getSessionUser, isSuperAdmin } from '@/lib/auth';
 import { calculateInvoiceTotals } from '@/lib/invoice-calculations';
+import { Button } from '@/components/ui/button';
+import { Pagination, PaginationContent, PaginationItem, PaginationEllipsis } from '@/components/ui/pagination';
+import CommandPalette from '@/components/CommandPalette';
 
 export const dynamic = 'force-dynamic';
 
@@ -93,65 +96,82 @@ export default async function Home({
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Invoices</h1>
+        <h1 className="text-2xl font-bold text-white">Invoices</h1>
         <Link
           href="/create"
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-[#7a67e7] hover:bg-[#6b59d6] transition-colors"
         >
           <Plus className="h-4 w-4 mr-2" />
           New Invoice
         </Link>
       </div>
 
-      <form className="bg-white shadow rounded-md p-4 grid grid-cols-1 md:grid-cols-6 gap-3" method="GET">
-        <input
-          name="q"
-          defaultValue={q}
-          placeholder="Search invoice, company, driver"
-          className="md:col-span-2 rounded-md border-gray-300 shadow-sm border p-2"
-        />
-        <select name="status" defaultValue={status} className="rounded-md border-gray-300 shadow-sm border p-2">
-          <option value="">All Statuses</option>
-          <option value="draft">Draft</option>
-          <option value="sent">Sent</option>
-          <option value="paid">Paid</option>
-        </select>
-        <select name="companyId" defaultValue={companyId || ''} className="rounded-md border-gray-300 shadow-sm border p-2">
-          <option value="">All Companies</option>
-          {companies.map((company) => (
-            <option key={company.id} value={company.id}>{company.name}</option>
-          ))}
-        </select>
-        <select name="driverId" defaultValue={driverId || ''} className="rounded-md border-gray-300 shadow-sm border p-2">
-          <option value="">All Drivers</option>
-          {drivers.map((driver) => (
-            <option key={driver.id} value={driver.id}>{driver.name}</option>
-          ))}
-        </select>
-        <input
-          type="date"
-          name="dateFrom"
-          defaultValue={params.dateFrom || ''}
-          className="rounded-md border-gray-300 shadow-sm border p-2"
-        />
-        <input
-          type="date"
-          name="dateTo"
-          defaultValue={params.dateTo || ''}
-          className="rounded-md border-gray-300 shadow-sm border p-2"
-        />
-        <button
-          type="submit"
-          className="md:col-span-6 inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium text-white bg-gray-900 hover:bg-gray-800"
-        >
-          Apply Filters
-        </button>
-      </form>
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 shadow-lg">
+        <form className="space-y-6" method="GET">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto] gap-4">
+            <div className="relative">
+              <select 
+                name="companyId" 
+                defaultValue={companyId || ''} 
+                className="appearance-none rounded-xl border border-zinc-700 bg-zinc-800 text-white shadow-sm px-4 py-3 pr-12 focus:ring-2 focus:ring-[#7a67e7] focus:border-transparent w-full"
+              >
+                <option value="">All Companies</option>
+                {companies.map((company) => (
+                  <option key={company.id} value={company.id}>{company.name}</option>
+                ))}
+              </select>
+              <svg className="pointer-events-none absolute right-6 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
+              </svg>
+            </div>
 
-      <div className="bg-white shadow overflow-hidden sm:rounded-md">
-        <ul role="list" className="divide-y divide-gray-200">
+            <div className="relative">
+              <select 
+                name="driverId" 
+                defaultValue={driverId || ''} 
+                className="appearance-none rounded-xl border border-zinc-700 bg-zinc-800 text-white shadow-sm px-4 py-3 pr-12 focus:ring-2 focus:ring-[#7a67e7] focus:border-transparent w-full"
+              >
+                <option value="">All Drivers</option>
+                {drivers.map((driver) => (
+                  <option key={driver.id} value={driver.id}>{driver.name}</option>
+                ))}
+              </select>
+              <svg className="pointer-events-none absolute right-6 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
+              </svg>
+            </div>
+
+            <input
+              type="date"
+              name="dateFrom"
+              defaultValue={params.dateFrom || ''}
+              className="rounded-xl border border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 shadow-sm px-4 py-3 focus:ring-2 focus:ring-[#7a67e7] focus:border-transparent"
+            />
+
+            <input
+              type="date"
+              name="dateTo"
+              defaultValue={params.dateTo || ''}
+              className="w-full rounded-xl border border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 shadow-sm px-4 py-3 focus:ring-2 focus:ring-[#7a67e7] focus:border-transparent"
+            />
+
+            <div className="flex items-center gap-4 lg:justify-end flex-nowrap">
+              <CommandPalette />
+              <button
+                type="submit"
+                className="rounded-xl bg-[#7a67e7] px-6 py-3 text-sm font-medium text-white hover:bg-[#6b59d6] transition-colors whitespace-nowrap"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <div className="bg-zinc-900 border border-zinc-800 overflow-hidden rounded-xl">
+        <ul role="list" className="divide-y divide-zinc-800">
           {invoices.length === 0 ? (
-            <li className="px-4 py-12 text-center text-gray-500">
+            <li className="px-4 py-12 text-center text-zinc-500">
               No invoices found. Create one to get started.
             </li>
           ) : (
@@ -180,25 +200,25 @@ export default async function Home({
 
               return (
                 <li key={invoice.id}>
-                  <div className="block hover:bg-gray-50 transition duration-150 ease-in-out">
+                  <div className="block hover:bg-zinc-800/50 transition duration-150 ease-in-out">
                     <div className="px-4 py-4 sm:px-6">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center text-sm font-medium text-blue-600 truncate">
-                          <FileText className="h-5 w-5 mr-2 text-gray-400" />
-                          <Link href={`/invoices/${invoice.id}`} className="hover:underline">
+                        <div className="flex items-center text-sm font-medium text-blue-400 truncate">
+                          <FileText className="h-5 w-5 mr-2 text-zinc-500" />
+                          <Link href={`/invoices/${invoice.id}`} className="hover:underline hover:text-blue-300">
                             {invoice.invoice_number}
                           </Link>
                         </div>
                         <div className="ml-2 flex-shrink-0 flex items-center gap-2">
-                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                          <span className="px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                             {formatMoney(totals.net)}
                           </span>
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          <span className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${
                             invoice.status === 'paid'
-                              ? 'bg-blue-100 text-blue-800'
+                              ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
                               : invoice.status === 'sent'
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-gray-100 text-gray-800'
+                                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                : 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20'
                           }`}>
                             {invoice.status}
                           </span>
@@ -206,19 +226,19 @@ export default async function Home({
                       </div>
                       <div className="mt-2 sm:flex sm:justify-between">
                         <div className="sm:flex">
-                          <p className="flex items-center text-sm text-gray-500">
+                          <p className="flex items-center text-sm text-zinc-400">
                             {invoice.company.name}
                           </p>
-                          <p className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0 sm:ml-6">
-                            Driver: <span className="font-medium text-gray-900 ml-1">{invoice.driver.name}</span>
+                          <p className="mt-2 flex items-center text-sm text-zinc-400 sm:mt-0 sm:ml-6">
+                            Driver: <span className="font-medium text-zinc-200 ml-1">{invoice.driver.name}</span>
                           </p>
                         </div>
-                        <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
+                        <div className="mt-2 flex items-center text-sm text-zinc-500 sm:mt-0">
                           <p>
-                            Issued: <time dateTime={invoice.invoice_date.toISOString()}>{format(invoice.invoice_date, 'MMM dd, yyyy')}</time>
+                            Issued: <time dateTime={invoice.invoice_date.toISOString()} className="text-zinc-400">{format(invoice.invoice_date, 'MMM dd, yyyy')}</time>
                           </p>
                           {invoice.due_date ? (
-                            <p className="ml-4">Due: {format(invoice.due_date, 'MMM dd, yyyy')}</p>
+                            <p className="ml-4">Due: <span className="text-zinc-400">{format(invoice.due_date, 'MMM dd, yyyy')}</span></p>
                           ) : null}
                           <div className="ml-4">
                             <InvoiceActions invoiceId={invoice.id} status={invoice.status} />
@@ -234,25 +254,98 @@ export default async function Home({
         </ul>
       </div>
 
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">
-          Page {page} of {totalPages}
-        </p>
-        <div className="flex gap-2">
-          <Link
-            href={{ pathname: '/dashboard', query: { ...params, page: Math.max(1, page - 1).toString() } }}
-            className={`px-3 py-1 rounded-md border text-sm ${page === 1 ? 'pointer-events-none opacity-50' : 'hover:bg-gray-50'}`}
-          >
-            Previous
-          </Link>
-          <Link
-            href={{ pathname: '/dashboard', query: { ...params, page: Math.min(totalPages, page + 1).toString() } }}
-            className={`px-3 py-1 rounded-md border text-sm ${page >= totalPages ? 'pointer-events-none opacity-50' : 'hover:bg-gray-50'}`}
-          >
-            Next
-          </Link>
-        </div>
-      </div>
+      {totalPages > 1 && (
+        <Pagination className="mt-6">
+          <PaginationContent>
+            {/* Previous Button */}
+            <PaginationItem>
+              <Button
+                variant="ghost"
+                size="sm"
+                asChild
+                disabled={page === 1}
+                className="text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-50"
+              >
+                <Link
+                  href={{ pathname: '/dashboard', query: { ...params, page: Math.max(1, page - 1).toString() } }}
+                  className={page === 1 ? 'pointer-events-none' : ''}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  <span className="hidden sm:inline">Previous</span>
+                </Link>
+              </Button>
+            </PaginationItem>
+
+            {/* Page Numbers */}
+            {(() => {
+              const pages: (number | 'ellipsis')[] = [];
+
+              if (totalPages <= 7) {
+                for (let i = 1; i <= totalPages; i++) pages.push(i);
+              } else {
+                pages.push(1);
+                if (page > 3) pages.push('ellipsis');
+
+                const start = Math.max(2, page - 1);
+                const end = Math.min(totalPages - 1, page + 1);
+
+                for (let i = start; i <= end; i++) pages.push(i);
+
+                if (page < totalPages - 2) pages.push('ellipsis');
+                pages.push(totalPages);
+              }
+
+              return pages.map((p, idx) => (
+                <PaginationItem key={idx}>
+                  {p === 'ellipsis' ? (
+                    <PaginationEllipsis />
+                  ) : (
+                    <Button
+                      variant={p === page ? 'outline' : 'ghost'}
+                      mode="icon"
+                      size="sm"
+                      asChild
+                      className={
+                        p === page
+                          ? 'border-zinc-700 bg-zinc-800 text-white hover:bg-zinc-700'
+                          : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+                      }
+                    >
+                      <Link href={{ pathname: '/dashboard', query: { ...params, page: p.toString() } }}>
+                        {p}
+                      </Link>
+                    </Button>
+                  )}
+                </PaginationItem>
+              ));
+            })()}
+
+            {/* Next Button */}
+            <PaginationItem>
+              <Button
+                variant="ghost"
+                size="sm"
+                asChild
+                disabled={page >= totalPages}
+                className="text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-50"
+              >
+                <Link
+                  href={{ pathname: '/dashboard', query: { ...params, page: Math.min(totalPages, page + 1).toString() } }}
+                  className={page >= totalPages ? 'pointer-events-none' : ''}
+                >
+                  <span className="hidden sm:inline">Next</span>
+                  <ChevronRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      )}
+
+      {/* Page indicator for single page or below pagination */}
+      <p className="text-center text-sm text-zinc-500 mt-4">
+        Page {page} of {totalPages}
+      </p>
     </div>
   );
 }

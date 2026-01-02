@@ -1,36 +1,80 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Multi-Company Invoice Generator
 
-## Getting Started
+A Next.js web application for generating driver settlement invoices for trucking companies.
 
-First, run the development server:
+## Features
+- **Company & Driver Management**: Pre-seeded with 5 companies and specific drivers.
+- **Invoice Creation**: Add loads, calculate percentage deductions, and add fixed deductions (fuel, toll, etc.).
+- **PDF Generation**: Professional PDF export using server-side rendering (Puppeteer).
+- **History**: View and re-download past invoices.
+- **Editing**: Edit existing invoices.
+- **Auth & Company Scoping**: Basic session auth with company-level access control.
+- **Invoice Lifecycle**: Draft/Sent/Paid with due dates and tax percentage.
+- **Reports**: Filtered summaries by company, driver, and date range.
+- **CSV Import/Export**: Load and deduction CSV tools.
+- **Email Sending**: Send invoice PDFs via SMTP.
 
+## Tech Stack
+- **Framework**: Next.js 16 (App Router)
+- **Database**: SQLite (via Prisma ORM)
+- **Styling**: Tailwind CSS
+- **PDF**: Puppeteer + React Render
+- **Language**: TypeScript
+
+## Setup Instructions
+
+1. **Install Dependencies**
+   ```bash
+   npm install
+   ```
+
+2. **Database Setup**
+   Initialize the SQLite database and seed the initial data:
+   ```bash
+   npx prisma migrate dev --name init
+   # Seed runs automatically after migration, but if needed:
+   npx prisma db seed
+   ```
+
+3. **Environment Variables**
+   Create a `.env` with at least:
+   ```bash
+   AUTH_SECRET=dev-only-secret
+   ADMIN_EMAIL=admin@example.com
+   ADMIN_PASSWORD=admin12345
+   SMTP_HOST=smtp.example.com
+   SMTP_PORT=587
+   SMTP_USER=your-user
+   SMTP_PASS=your-pass
+   SMTP_FROM=invoices@example.com
+   ```
+
+4. **Run Development Server**
+   ```bash
+   npm run dev
+   ```
+
+5. **Open Browser**
+   Navigate to [http://localhost:3000](http://localhost:3000).
+
+## Usage
+1. Click "New Invoice" on the dashboard.
+2. Select a Company (Drivers list updates automatically).
+3. Select a Driver.
+4. Add Loads (Date, Ref, From, To, Amount).
+5. Verify Percentage Deduction (default is 12%, editable).
+6. Add Fixed Deductions (Fuel, etc.).
+7. Click "Preview" to see the invoice.
+8. Click "Save Invoice".
+9. On the Dashboard or Invoice Page, click "Download PDF".
+
+## Testing
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run test
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Project Structure
+- `app/`: Next.js App Router pages and API routes.
+- `components/`: React components (InvoiceForm, InvoiceTemplate).
+- `lib/`: Utilities (Prisma client).
+- `prisma/`: Database schema and seed script.

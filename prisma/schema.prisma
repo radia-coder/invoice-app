@@ -1,0 +1,126 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id              Int       @id @default(autoincrement())
+  name            String
+  address         String?
+  email           String?
+  phone           String?
+  logo_url        String?
+  brand_color     String?
+  invoice_template String   @default("classic")
+  default_percent Float     @default(12.0)
+  default_tax_percent Float @default(0.0)
+  default_currency String   @default("USD")
+  invoice_prefix  String    @default("INV-")
+  footer_note     String?
+  created_at      DateTime  @default(now())
+
+  drivers         Driver[]
+  invoices        Invoice[]
+  deductionTypes  DeductionType[]
+  users           User[]
+}
+
+model Driver {
+  id                      Int       @id @default(autoincrement())
+  company_id              Int?
+  name                    String
+  type                    String    // "Company Driver" or "Owner-Operator"
+  email                   String?
+  whatsapp_number         String?
+  whatsapp_link           String?
+  address                 String?
+  default_percent_override Float?
+  status                  String    @default("active") // "active", "inactive"
+  created_at              DateTime  @default(now())
+
+  company                 Company?  @relation(fields: [company_id], references: [id], onDelete: SetNull)
+  invoices                Invoice[]
+}
+
+model Invoice {
+  id              Int       @id @default(autoincrement())
+  company_id      Int
+  driver_id       Int
+  invoice_number  String    @unique
+  public_token    String?   @unique
+  week_start      DateTime
+  week_end        DateTime
+  invoice_date    DateTime
+  percent         Float     // The % used for this specific invoice
+  tax_percent     Float     @default(0.0)
+  status          String    @default("draft") // "draft", "sent", "paid"
+  due_date        DateTime?
+  sent_at         DateTime?
+  paid_at         DateTime?
+  notes           String?
+  currency        String    @default("USD")
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  company         Company   @relation(fields: [company_id], references: [id])
+  driver          Driver    @relation(fields: [driver_id], references: [id])
+  loads           InvoiceLoad[]
+  deductions      InvoiceDeduction[]
+
+  @@index([company_id])
+  @@index([driver_id])
+  @@index([created_at])
+  @@index([status])
+}
+
+model InvoiceLoad {
+  id            Int      @id @default(autoincrement())
+  invoice_id    Int
+  load_ref      String?
+  from_location String
+  to_location   String
+  load_date     DateTime
+  amount        Float
+
+  invoice       Invoice  @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+}
+
+model InvoiceDeduction {
+  id             Int     @id @default(autoincrement())
+  invoice_id     Int
+  deduction_type String  // "Fuel", "Toll", "ELD", "Insurance", "Other", or custom types
+  amount         Float
+  note           String?
+
+  invoice        Invoice @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+}
+
+model DeductionType {
+  id          Int       @id @default(autoincrement())
+  name        String
+  company_id  Int?      // Optional: if null, it's a global/default type
+  is_default  Boolean   @default(false) // Mark built-in types
+  created_at  DateTime  @default(now())
+
+  company     Company?  @relation(fields: [company_id], references: [id], onDelete: Cascade)
+
+  @@unique([name, company_id]) // Unique per company or globally
+}
+
+model User {
+  id            Int      @id @default(autoincrement())
+  email         String   @unique
+  password_hash String
+  role          String   @default("admin") // "admin", "viewer", "super_admin"
+  company_id    Int?
+  created_at    DateTime @default(now())
+
+  company       Company? @relation(fields: [company_id], references: [id])
+}

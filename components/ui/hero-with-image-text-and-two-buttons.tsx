@@ -1,49 +1,52 @@
-import { MoveRight, PhoneCall } from "lucide-react";
+import { MoveRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-import Image from "next/image";
 
 function Hero() {
   return (
-    <div className="w-full py-20 lg:py-40">
-      <div className="container mx-auto px-4">
-        <div className="grid grid-cols-1 gap-8 items-center lg:grid-cols-2">
-          <div className="flex gap-4 flex-col">
-            <div>
-              <Badge variant="outline">We&apos;re live!</Badge>
-            </div>
-            <div className="flex gap-4 flex-col">
-              <h1 className="text-5xl md:text-7xl max-w-lg tracking-tighter text-left font-regular">
-                This is the start of something!
+    <div className="w-full min-h-screen bg-black text-white">
+      <div className="container mx-auto px-4 lg:px-8">
+        <div className="grid grid-cols-1 gap-8 items-center lg:grid-cols-2 min-h-screen -translate-y-10 lg:-translate-y-16">
+          <div className="order-1 lg:order-2 rounded-lg overflow-hidden relative mt-6 lg:mt-0 lg:-mt-10 w-full h-[520px] sm:h-[620px] md:h-[740px] lg:h-[860px] mx-auto">
+            <img
+              src="/hero.png"
+              alt="Driver statement preview on laptop"
+              className="h-full w-full object-contain"
+              loading="eager"
+            />
+          </div>
+          <div className="order-2 lg:order-1 flex gap-6 flex-col max-w-2xl -mt-8 md:-mt-10 items-center text-center mx-auto">
+            <div className="flex gap-6 flex-col items-center text-center">
+              <h1 className="text-2xl md:text-3xl lg:text-4xl max-w-xl tracking-tight text-center font-normal leading-tight">
+                Generate Professional Driver Statements in Minutes
               </h1>
-              <p className="text-xl leading-relaxed tracking-tight text-muted-foreground max-w-md text-left">
-                Managing a small business today is already tough. Avoid further
-                complications by ditching outdated, tedious trade methods. Our
-                goal is to streamline SMB trade, making it easier and faster than
-                ever.
+              <p className="text-xs md:text-sm leading-relaxed text-gray-400 max-w-lg text-center">
+                A complete invoice and driver settlement tool for trucking operations. Keep all load details,
+                deductions, and net pay in one place, with a simple edit → preview → download flow and invoice
+                history for re-download anytime.
               </p>
             </div>
-            <div className="flex flex-row gap-4">
-              <Button size="lg" className="gap-4" variant="outline" asChild>
-                <Link href="https://unsplash.com/photos/a-man-sitting-at-a-desk-with-a-laptop-and-a-cup-of-coffee-744oGZ8TS_0" target="_blank">
-                  Jump on a call <PhoneCall className="w-4 h-4" />
+            <div className="flex flex-row gap-4 mt-4 justify-center">
+              <Button 
+                size="lg" 
+                className="gap-2 bg-transparent border border-[#7a67e7]/40 hover:bg-[#7a67e7]/10 text-[#7a67e7] px-6 py-6 text-base" 
+                variant="outline" 
+                asChild
+              >
+                <Link href="#">
+                  Go our website
                 </Link>
               </Button>
-              <Button size="lg" className="gap-4" asChild>
+              <Button 
+                size="lg" 
+                className="gap-2 bg-[#7a67e7] text-white hover:bg-[#6b59d6] px-6 py-6 text-base" 
+                asChild
+              >
                 <Link href="/login">
-                  Sign up here <MoveRight className="w-4 h-4" />
+                  Sign in here <MoveRight className="w-4 h-4" />
                 </Link>
               </Button>
             </div>
-          </div>
-          <div className="bg-muted rounded-md aspect-square overflow-hidden relative">
-            <Image 
-              src="https://images.unsplash.com/photo-1554224155-6726b3ff858f?q=80&w=1000&auto=format&fit=crop" 
-              alt="Invoice Management" 
-              fill
-              className="object-cover"
-            />
           </div>
         </div>
       </div>

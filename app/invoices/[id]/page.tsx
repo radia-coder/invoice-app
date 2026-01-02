@@ -36,24 +36,27 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center flex-wrap gap-4">
         <div className="flex items-center space-x-4">
-            <Link href="/dashboard" className="text-gray-500 hover:text-gray-700">
+            <Link href="/dashboard" className="text-zinc-400 hover:text-white transition-colors">
                 <ArrowLeft className="w-5 h-5" />
             </Link>
-            <h1 className="text-2xl font-bold text-gray-900">Invoice {invoice.invoice_number}</h1>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Invoice {invoice.invoice_number}</h1>
+              <p className="text-sm text-zinc-400 mt-0.5">View and manage invoice details</p>
+            </div>
         </div>
         <div className="flex space-x-3">
-            <Link 
+            <Link
                 href={`/invoices/${id}/edit`}
-                className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                className="inline-flex items-center px-4 py-2 border border-zinc-700 text-sm font-medium rounded-lg text-zinc-300 bg-zinc-800 hover:bg-zinc-700 hover:text-white transition-colors"
             >
                 <Edit className="w-4 h-4 mr-2" /> Edit
             </Link>
-            <a 
-                href={`/api/invoices/${id}/pdf`} 
+            <a
+                href={`/api/invoices/${id}/pdf`}
                 target="_blank"
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-[#7a67e7] hover:bg-[#6b59d6] transition-colors"
             >
                 <Download className="w-4 h-4 mr-2" /> Download PDF
             </a>
@@ -77,7 +80,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
         />
       </div>
 
-      <div className="bg-white shadow-lg border rounded-lg overflow-hidden">
+      <div className="bg-white shadow-lg border rounded-xl overflow-hidden">
         <InvoiceTemplate data={invoiceData} />
       </div>
     </div>
