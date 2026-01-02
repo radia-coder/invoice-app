@@ -1,9 +1,11 @@
 import { Hero } from "@/components/ui/hero-with-image-text-and-two-buttons";
 
-export default function HomePage() {
+function HeroDemo() {
   return (
-    <div className="bg-white">
+    <div className="block">
       <Hero />
     </div>
   );
 }
+
+export { HeroDemo };
