@@ -42,7 +42,8 @@ export async function POST(
       });
     }
 
-    const baseUrl = new URL(request.url).origin;
+    const configuredBaseUrl = process.env.APP_BASE_URL?.trim().replace(/\/+$/, '');
+    const baseUrl = configuredBaseUrl || new URL(request.url).origin;
     return NextResponse.json({
       token,
       url: `${baseUrl}/public/invoices/${token}/pdf`
