@@ -24,6 +24,79 @@ export interface RateLimitResult {
   resetAt: number;
 }
 
+const isValidIPv4 = (ip: string) => {
+  const parts = ip.split('.');
+  if (parts.length !== 4) return false;
+  return parts.every((part) => {
+    if (!/^\d+$/.test(part)) return false;
+    const num = Number(part);
+    return num >= 0 && num <= 255;
+  });
+};
+
+const normalizeIP = (raw: string) => {
+  let value = raw.trim();
+  if (!value) return '';
+  value = value.replace(/^for=/i, '').trim();
+  value = value.replace(/^"|"$/g, '');
+  if (value.startsWith('[')) {
+    const end = value.indexOf(']');
+    if (end !== -1) {
+      value = value.slice(1, end);
+    }
+  }
+  if (value.startsWith('::ffff:')) {
+    value = value.slice(7);
+  }
+  if (value.includes(':') && value.includes('.') && isValidIPv4(value.split(':')[0])) {
+    value = value.split(':')[0];
+  }
+  return value;
+};
+
+const isPrivateIP = (ip: string) => {
+  const lower = ip.toLowerCase();
+  if (lower === '::1' || lower === '::') return true;
+  if (lower.startsWith('fc') || lower.startsWith('fd')) return true;
+  if (lower.startsWith('fe80:')) return true;
+  if (lower.startsWith('ff')) return true;
+
+  if (isValidIPv4(ip)) {
+    const [a, b] = ip.split('.').map(Number);
+    if (a === 10) return true;
+    if (a === 127) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 169 && b === 254) return true;
+    if (a === 100 && b >= 64 && b <= 127) return true;
+    if (a === 0) return true;
+  }
+
+  return false;
+};
+
+export const isPublicIP = (ip: string) => {
+  if (!ip) return false;
+  const lower = ip.toLowerCase();
+  if (lower === 'unknown' || lower === 'localhost') return false;
+  return !isPrivateIP(ip);
+};
+
+const extractForwardedFor = (value: string) => {
+  const entries = value.split(',');
+  const results: string[] = [];
+  for (const entry of entries) {
+    const params = entry.split(';');
+    for (const param of params) {
+      const [key, val] = param.trim().split('=');
+      if (key && key.toLowerCase() === 'for' && val) {
+        results.push(val);
+      }
+    }
+  }
+  return results;
+};
+
 /**
  * Check rate limit for a given identifier
  * @param identifier - Usually IP address or user ID
@@ -59,13 +132,36 @@ export function checkRateLimit(
  * Get client IP from request headers
  */
 export function getClientIP(request: Request): string {
+  const candidates: string[] = [];
+  const pushIfValue = (value: string | null | undefined) => {
+    if (!value) return;
+    candidates.push(value);
+  };
+
+  pushIfValue(request.headers.get('cf-connecting-ip'));
+  pushIfValue(request.headers.get('true-client-ip'));
+  pushIfValue(request.headers.get('x-real-ip'));
+
   const forwarded = request.headers.get('x-forwarded-for');
   if (forwarded) {
-    return forwarded.split(',')[0].trim();
+    candidates.push(...forwarded.split(','));
   }
-  const realIP = request.headers.get('x-real-ip');
-  if (realIP) {
-    return realIP;
+
+  const forwardedHeader = request.headers.get('forwarded');
+  if (forwardedHeader) {
+    candidates.push(...extractForwardedFor(forwardedHeader));
   }
-  return 'unknown';
+
+  pushIfValue(request.headers.get('x-client-ip'));
+  pushIfValue(request.headers.get('fastly-client-ip'));
+  pushIfValue(request.headers.get('x-cluster-client-ip'));
+  pushIfValue(request.headers.get('x-appengine-user-ip'));
+
+  const normalized = candidates
+    .map(normalizeIP)
+    .filter((ip) => ip && ip.toLowerCase() !== 'unknown');
+
+  const publicIP = normalized.find((ip) => isPublicIP(ip));
+  if (publicIP) return publicIP;
+  return normalized[0] || 'unknown';
 }

@@ -2,15 +2,19 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyPassword } from '@/lib/password';
 import { createSessionToken, SESSION_COOKIE_NAME } from '@/lib/session';
-import { checkRateLimit, getClientIP } from '@/lib/rate-limit';
+import { checkRateLimit, getClientIP, isPublicIP } from '@/lib/rate-limit';
 import { parseUserAgent } from '@/lib/user-agent';
 
 async function getLocationFromIP(ip: string): Promise<{ city?: string; country?: string }> {
-  if (!ip || ip === 'unknown' || ip === '127.0.0.1' || ip === '::1') {
+  if (!ip) {
+    return {};
+  }
+  const normalized = ip.startsWith('::ffff:') ? ip.slice(7) : ip;
+  if (!isPublicIP(normalized)) {
     return {};
   }
   try {
-    const response = await fetch(`http://ip-api.com/json/${ip}?fields=city,country`, {
+    const response = await fetch(`http://ip-api.com/json/${normalized}?fields=city,country`, {
       signal: AbortSignal.timeout(3000)
     });
     if (response.ok) {
