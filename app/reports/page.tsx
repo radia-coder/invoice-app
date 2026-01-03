@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Pagination, PaginationContent, PaginationItem, PaginationEllipsis } from '@/components/ui/pagination';
 import WeeklySummaryCard, { type WeeklySummaryData } from '@/components/WeeklySummaryCard';
+import DownloadReportButton from '@/components/DownloadReportButton';
 
 const WEEKLY_SUMMARY_PAGE_SIZE = 10;
 
@@ -211,6 +212,12 @@ export default async function ReportsPage({
           >
             Apply Filters
           </button>
+          <DownloadReportButton
+            companyId={companyId}
+            driverId={driverId}
+            dateFrom={params.dateFrom || null}
+            dateTo={params.dateTo || null}
+          />
         </div>
       </form>
 

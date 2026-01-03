@@ -36,6 +36,7 @@ model Driver {
   id                      Int       @id @default(autoincrement())
   company_id              Int?
   name                    String
+  truck_number            String?   // e.g., "TRK 007", "TRK 517"
   type                    String    // "Company Driver" or "Owner-Operator"
   email                   String?
   whatsapp_number         String?
