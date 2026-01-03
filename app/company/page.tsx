@@ -72,7 +72,10 @@ export default async function CompanyPage({
           </div>
         ) : null}
       </div>
-      <CompanyForm company={company} />
+      <CompanyForm company={{
+        ...company,
+        invoice_template: company.invoice_template as 'classic' | 'modern'
+      }} />
       <CompanyDriversManager
         companies={companies.length ? companies : [company]}
         selectedCompanyId={company.id}
