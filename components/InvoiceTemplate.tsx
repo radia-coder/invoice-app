@@ -87,8 +87,27 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
   const percentColor = isCompanyDriver ? 'text-green-600' : 'text-red-600';
   const percentSign = isCompanyDriver ? '' : '- ';
 
-  // Helper for safe HTML (very basic)
-  const esc = (s: string | null | undefined) => s ? s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
+  // Helper for safe HTML (basic escaping)
+  const escapeHtml = (value: string | null | undefined) =>
+    value
+      ? value
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;')
+      : '';
+
+  const safeUrl = (value: string | null | undefined) => {
+    if (!value) return '';
+    if (value.startsWith('/')) return value;
+    try {
+      const parsed = new URL(value);
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? value : '';
+    } catch {
+      return '';
+    }
+  };
 
   // Helper for safe date formatting
   const formatDate = (dateStr: string | Date | null | undefined, fmt: string) => {
@@ -102,21 +121,22 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
     }
   };
 
+  const logoUrl = safeUrl(data.company.logo_url);
   const loadsRows = data.loads.length === 0
     ? `<tr><td colspan="5" class="py-4 text-center text-gray-400 italic">No loads recorded</td></tr>`
     : data.loads.map(load => `
       <tr class="border-b border-gray-100 hover:bg-gray-50">
         <td class="py-2 px-3">${formatDate(load.load_date, 'MM/dd/yy')}</td>
-        <td class="py-2 px-3">${esc(load.load_ref) || '-'}</td>
-        <td class="py-2 px-3">${esc(load.from_location) || '-'}</td>
-        <td class="py-2 px-3">${esc(load.to_location) || '-'}</td>
+        <td class="py-2 px-3">${escapeHtml(load.load_ref) || '-'}</td>
+        <td class="py-2 px-3">${escapeHtml(load.from_location) || '-'}</td>
+        <td class="py-2 px-3">${escapeHtml(load.to_location) || '-'}</td>
         <td class="py-2 px-3 text-right font-medium">${formatCurrency(load.amount || 0, currency)}</td>
       </tr>
     `).join('');
 
   const deductionsRows = data.deductions.map(d => `
     <div class="flex justify-between text-sm text-gray-600">
-        <span>${esc(d.deduction_type)} ${d.note ? `(${esc(d.note)})` : ''}</span>
+        <span>${escapeHtml(d.deduction_type)} ${d.note ? `(${escapeHtml(d.note)})` : ''}</span>
         <span class="text-red-600">- ${formatCurrency(d.amount, currency)}</span>
     </div>
   `).join('');
@@ -129,8 +149,8 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
           <div style="background:${brandColor};" class="px-6 py-4 text-white flex justify-between items-center">
             <div>
               <p class="text-xs uppercase tracking-wide">Statement</p>
-              ${data.company.logo_url ? `<img src="${esc(data.company.logo_url)}" alt="Logo" class="h-10 mb-2" />` : ''}
-              <h1 class="text-2xl font-semibold">${esc(data.company.name)}</h1>
+              ${logoUrl ? `<img src="${logoUrl}" alt="Logo" class="h-10 mb-2" />` : ''}
+              <h1 class="text-2xl font-semibold">${escapeHtml(data.company.name)}</h1>
             </div>
             <div class="text-right text-sm">
               <p>${formatDate(data.invoice_date, 'MMM dd, yyyy')}</p>
@@ -138,9 +158,9 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
           </div>
           <div class="px-6 py-4 flex justify-between text-sm text-gray-600">
             <div>
-              ${data.company.address ? `<p>${esc(data.company.address)}</p>` : ''}
-              ${data.company.email ? `<p>${esc(data.company.email)}</p>` : ''}
-              ${data.company.phone ? `<p>${esc(data.company.phone)}</p>` : ''}
+              ${data.company.address ? `<p>${escapeHtml(data.company.address)}</p>` : ''}
+              ${data.company.email ? `<p>${escapeHtml(data.company.email)}</p>` : ''}
+              ${data.company.phone ? `<p>${escapeHtml(data.company.phone)}</p>` : ''}
             </div>
             <div class="text-right">
               <p>Week start : ${formatDate(data.week_start, 'MM/dd/yy')}</p>
@@ -152,15 +172,15 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
       ` : `
         <div class="flex justify-between items-start border-b pb-6 mb-6">
           <div>
-            ${data.company.logo_url ? `<img src="${esc(data.company.logo_url)}" alt="Logo" class="h-10 mb-2" />` : ''}
+            ${logoUrl ? `<img src="${logoUrl}" alt="Logo" class="h-10 mb-2" />` : ''}
             <div style="background:${brandColor};" class="h-1 w-12 rounded-full mb-2"></div>
             <h1 class="text-2xl font-bold text-gray-900 uppercase tracking-wide mb-1">
-              ${esc(data.company.name)}
+              ${escapeHtml(data.company.name)}
             </h1>
             <div class="text-gray-500 space-y-1">
-              ${data.company.address ? `<p>${esc(data.company.address)}</p>` : ''}
-              ${data.company.email ? `<p>${esc(data.company.email)}</p>` : ''}
-              ${data.company.phone ? `<p>${esc(data.company.phone)}</p>` : ''}
+              ${data.company.address ? `<p>${escapeHtml(data.company.address)}</p>` : ''}
+              ${data.company.email ? `<p>${escapeHtml(data.company.email)}</p>` : ''}
+              ${data.company.phone ? `<p>${escapeHtml(data.company.phone)}</p>` : ''}
             </div>
           </div>
           <div class="text-right">
@@ -179,9 +199,9 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
       <div class="mb-8">
         <h3 class="text-gray-500 uppercase text-xs font-bold tracking-wider mb-2">Driver / Recipient</h3>
         <div class="p-4 bg-gray-50 rounded border border-gray-100">
-            <p class="text-lg font-semibold text-gray-900">${esc(data.driver.name)}</p>
-            <p class="text-gray-600">${esc(data.driver.type)}</p>
-            ${data.driver.address ? `<p class="text-gray-500">${esc(data.driver.address)}</p>` : ''}
+            <p class="text-lg font-semibold text-gray-900">${escapeHtml(data.driver.name)}</p>
+            <p class="text-gray-600">${escapeHtml(data.driver.type)}</p>
+            ${data.driver.address ? `<p class="text-gray-500">${escapeHtml(data.driver.address)}</p>` : ''}
         </div>
       </div>
 
@@ -262,8 +282,8 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
       <!-- Footer -->
       ${(data.notes || data.company.footer_note) ? `
         <div class="border-t pt-4 text-gray-500 text-sm">
-            ${data.notes ? `<p class="mb-2"><span class="font-semibold">Notes:</span> ${esc(data.notes)}</p>` : ''}
-            ${data.company.footer_note ? `<p class="italic">${esc(data.company.footer_note)}</p>` : ''}
+            ${data.notes ? `<p class="mb-2"><span class="font-semibold">Notes:</span> ${escapeHtml(data.notes)}</p>` : ''}
+            ${data.company.footer_note ? `<p class="italic">${escapeHtml(data.company.footer_note)}</p>` : ''}
         </div>
       ` : ''}
     </div>

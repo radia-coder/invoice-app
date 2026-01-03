@@ -55,6 +55,7 @@ model Invoice {
   driver_id       Int
   invoice_number  String    @unique
   public_token    String?   @unique
+  public_token_expires_at DateTime?
   week_start      DateTime
   week_end        DateTime
   invoice_date    DateTime

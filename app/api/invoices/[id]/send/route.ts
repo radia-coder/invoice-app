@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { requireApiAuth } from '@/lib/api-auth';
 import puppeteer from 'puppeteer';
 import { generateInvoiceHTML, InvoiceData } from '@/components/InvoiceTemplate';
+import { invoicePdfStyles } from '@/lib/invoice-pdf-styles';
 import nodemailer from 'nodemailer';
 import fs from 'fs/promises';
 import path from 'path';
@@ -37,7 +38,7 @@ const getPdfBuffer = async (invoice: any) => {
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Invoice ${invoice.invoice_number}</title>
-        <script src="https://cdn.tailwindcss.com"></script>
+        <style>${invoicePdfStyles}</style>
         <style>
            @page { margin: 20px; }
            body { -webkit-print-color-adjust: exact; }
@@ -49,9 +50,13 @@ const getPdfBuffer = async (invoice: any) => {
     </html>
   `;
 
+  const args = ['--disable-dev-shm-usage', '--disable-gpu'];
+  if (process.env.PUPPETEER_NO_SANDBOX === 'true') {
+    args.push('--no-sandbox', '--disable-setuid-sandbox');
+  }
   const browser = await puppeteer.launch({
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+    args
   });
   const page = await browser.newPage();
   await page.setContent(html, { waitUntil: 'networkidle0' });

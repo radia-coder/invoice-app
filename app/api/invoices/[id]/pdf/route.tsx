@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import puppeteer from 'puppeteer'
 import { generateInvoiceHTML, InvoiceData } from '@/components/InvoiceTemplate'
+import { invoicePdfStyles } from '@/lib/invoice-pdf-styles'
 import { requireApiAuth } from '@/lib/api-auth'
 import fs from 'fs/promises'
 import path from 'path'
@@ -75,7 +76,7 @@ export async function GET(
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Invoice ${invoice.invoice_number}</title>
-        <script src="https://cdn.tailwindcss.com"></script>
+        <style>${invoicePdfStyles}</style>
         <style>
            @page { margin: 20px; }
            body { -webkit-print-color-adjust: exact; }
@@ -90,9 +91,13 @@ export async function GET(
   // 4. Generate PDF
   let browser;
   try {
+    const args = ['--disable-dev-shm-usage', '--disable-gpu']
+    if (process.env.PUPPETEER_NO_SANDBOX === 'true') {
+      args.push('--no-sandbox', '--disable-setuid-sandbox')
+    }
     browser = await puppeteer.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      args
     })
     const page = await browser.newPage()
     await page.setContent(html, { waitUntil: 'networkidle0' })

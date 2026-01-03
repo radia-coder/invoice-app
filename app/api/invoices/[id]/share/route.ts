@@ -33,12 +33,15 @@ export async function POST(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const now = new Date();
     let token = invoice.public_token;
-    if (!token) {
+    const expired = invoice.public_token_expires_at && invoice.public_token_expires_at < now;
+    if (!token || expired) {
       token = generateToken();
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       await prisma.invoice.update({
         where: { id: invoiceId },
-        data: { public_token: token }
+        data: { public_token: token, public_token_expires_at: expiresAt }
       });
     }
 
@@ -78,7 +81,7 @@ export async function DELETE(
 
   await prisma.invoice.update({
     where: { id: invoiceId },
-    data: { public_token: null }
+    data: { public_token: null, public_token_expires_at: null }
   });
 
   return NextResponse.json({ success: true });
