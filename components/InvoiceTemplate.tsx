@@ -106,6 +106,7 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
 
   const safeUrl = (value: string | null | undefined) => {
     if (!value) return '';
+    if (value.startsWith('data:') || value.startsWith('blob:')) return value;
     if (value.startsWith('/')) return value;
     try {
       const parsed = new URL(value);

@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import { requireApiAuth } from '@/lib/api-auth'
 import { formatZodErrors, invoiceInputSchema } from '@/lib/validation'
+import { getInvoicePdfBuffer } from '@/lib/invoice-pdf'
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -178,6 +179,28 @@ export async function PUT(
         return updatedInvoice
       })
   
+      const invoiceWithRelations = await prisma.invoice.findUnique({
+        where: { id: invoiceId },
+        include: {
+          company: true,
+          driver: true,
+          loads: true,
+          deductions: true
+        }
+      })
+
+      if (invoiceWithRelations) {
+        try {
+          await getInvoicePdfBuffer({
+            ...invoiceWithRelations,
+            id: invoiceWithRelations.id,
+            updated_at: invoiceWithRelations.updated_at
+          })
+        } catch (error) {
+          console.error('PDF warmup error:', error)
+        }
+      }
+
       return NextResponse.json(result)
     } catch (error) {
       console.error(error)

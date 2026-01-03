@@ -1,27 +1,13 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { requireApiAuth } from '@/lib/api-auth';
-import puppeteer from 'puppeteer';
-import { generateInvoiceHTML, InvoiceData } from '@/components/InvoiceTemplate';
-import { invoicePdfStyles } from '@/lib/invoice-pdf-styles';
+import { getInvoicePdfBuffer } from '@/lib/invoice-pdf';
+import { type InvoiceData } from '@/components/InvoiceTemplate';
 import nodemailer from 'nodemailer';
-import fs from 'fs/promises';
-import path from 'path';
 
 export const runtime = 'nodejs';
 
 const getPdfBuffer = async (invoice: any) => {
-  const pdfDir = path.join(process.cwd(), 'storage', 'pdfs');
-  const pdfPath = path.join(pdfDir, `${invoice.id}.pdf`);
-  try {
-    const stats = await fs.stat(pdfPath);
-    if (stats.mtimeMs >= invoice.updated_at.getTime()) {
-      return await fs.readFile(pdfPath);
-    }
-  } catch {
-    // cache miss
-  }
-
   const invoiceData: InvoiceData = {
     ...invoice,
     company: invoice.company,
@@ -30,47 +16,11 @@ const getPdfBuffer = async (invoice: any) => {
     deductions: invoice.deductions
   };
 
-  const componentHtml = generateInvoiceHTML(invoiceData);
-  const html = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Invoice ${invoice.invoice_number}</title>
-        <style>${invoicePdfStyles}</style>
-        <style>
-           @page { margin: 20px; }
-           body { -webkit-print-color-adjust: exact; }
-        </style>
-      </head>
-      <body>
-        ${componentHtml}
-      </body>
-    </html>
-  `;
-
-  const args = ['--disable-dev-shm-usage', '--disable-gpu'];
-  if (process.env.PUPPETEER_NO_SANDBOX === 'true') {
-    args.push('--no-sandbox', '--disable-setuid-sandbox');
-  }
-  const browser = await puppeteer.launch({
-    headless: true,
-    args
+  return getInvoicePdfBuffer({
+    ...invoiceData,
+    id: invoice.id,
+    updated_at: invoice.updated_at
   });
-  const page = await browser.newPage();
-  await page.setContent(html, { waitUntil: 'networkidle0' });
-  const pdfBuffer = await page.pdf({
-    format: 'A4',
-    printBackground: true,
-    margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' }
-  });
-  await browser.close();
-
-  await fs.mkdir(pdfDir, { recursive: true });
-  await fs.writeFile(pdfPath, pdfBuffer);
-
-  return pdfBuffer;
 };
 
 export async function POST(

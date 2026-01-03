@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import { requireApiAuth } from '@/lib/api-auth'
 import { formatZodErrors, invoiceInputSchema } from '@/lib/validation'
+import { getInvoicePdfBuffer } from '@/lib/invoice-pdf'
 
 interface LoadInput {
   load_ref?: string | null;
@@ -147,8 +148,24 @@ export async function POST(request: Request) {
             note: d.note ?? undefined
           }))
         }
+      },
+      include: {
+        company: true,
+        driver: true,
+        loads: true,
+        deductions: true
       }
     })
+
+    try {
+      await getInvoicePdfBuffer({
+        ...invoice,
+        id: invoice.id,
+        updated_at: invoice.updated_at
+      })
+    } catch (error) {
+      console.error('PDF warmup error:', error)
+    }
 
     return NextResponse.json(invoice)
   } catch (error) {
