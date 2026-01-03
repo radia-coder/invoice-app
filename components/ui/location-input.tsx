@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { US_STATES, normalizeState, filterStates } from '@/lib/us-states';
 
 interface LocationInputProps {
@@ -28,8 +29,10 @@ export function LocationInput({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filteredStates, setFilteredStates] = useState(US_STATES);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Sync external value changes
   useEffect(() => {
@@ -44,6 +47,18 @@ export function LocationInput({
     return afterComma;
   };
 
+  // Update dropdown position when showing suggestions
+  const updateDropdownPosition = () => {
+    if (inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY,
+        left: rect.left + window.scrollX,
+        width: rect.width,
+      });
+    }
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     setInputValue(newValue);
@@ -53,6 +68,7 @@ export function LocationInput({
     const stateQuery = getStateQuery(newValue);
     if (stateQuery !== null) {
       setFilteredStates(filterStates(stateQuery));
+      updateDropdownPosition();
       setShowSuggestions(true);
       setHighlightedIndex(-1);
     } else {
@@ -144,12 +160,59 @@ export function LocationInput({
     }
   }, [highlightedIndex]);
 
+  // Update dropdown position on scroll/resize
+  useEffect(() => {
+    if (!showSuggestions) return;
+
+    const handleScroll = () => updateDropdownPosition();
+    const handleResize = () => updateDropdownPosition();
+
+    window.addEventListener('scroll', handleScroll, true);
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [showSuggestions]);
+
   const baseInputClass =
     'block w-full border bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a67e7] p-2 sm:text-sm';
   const errorClass = error ? 'border-red-500' : 'border-zinc-700';
 
+  // Dropdown rendered via portal to escape table overflow clipping
+  const dropdown = showSuggestions && filteredStates.length > 0 && typeof document !== 'undefined' ? createPortal(
+    <ul
+      ref={listRef}
+      style={{
+        position: 'absolute',
+        top: dropdownPosition.top,
+        left: dropdownPosition.left,
+        width: dropdownPosition.width,
+        zIndex: 9999,
+      }}
+      className="max-h-48 overflow-auto rounded-lg bg-zinc-800 border border-zinc-700 shadow-lg"
+    >
+      {filteredStates.slice(0, 8).map((state, index) => (
+        <li
+          key={state.code}
+          onMouseDown={() => handleSelectState(state.code)}
+          onMouseEnter={() => setHighlightedIndex(index)}
+          className={`cursor-pointer px-3 py-2 text-sm ${
+            index === highlightedIndex
+              ? 'bg-[#7a67e7] text-white'
+              : 'text-gray-300 hover:bg-zinc-700'
+          }`}
+        >
+          {state.name} ({state.code})
+        </li>
+      ))}
+    </ul>,
+    document.body
+  ) : null;
+
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <input
         ref={inputRef}
         type="text"
@@ -163,27 +226,7 @@ export function LocationInput({
         autoComplete="off"
         className={`${baseInputClass} ${errorClass} ${className}`}
       />
-      {showSuggestions && filteredStates.length > 0 && (
-        <ul
-          ref={listRef}
-          className="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-lg bg-zinc-800 border border-zinc-700 shadow-lg"
-        >
-          {filteredStates.slice(0, 8).map((state, index) => (
-            <li
-              key={state.code}
-              onClick={() => handleSelectState(state.code)}
-              onMouseEnter={() => setHighlightedIndex(index)}
-              className={`cursor-pointer px-3 py-2 text-sm ${
-                index === highlightedIndex
-                  ? 'bg-[#7a67e7] text-white'
-                  : 'text-gray-300 hover:bg-zinc-700'
-              }`}
-            >
-              {state.name} ({state.code})
-            </li>
-          ))}
-        </ul>
-      )}
+      {dropdown}
     </div>
   );
 }
