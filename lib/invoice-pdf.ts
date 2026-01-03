@@ -167,10 +167,12 @@ export async function getInvoicePdfBuffer(
       margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' },
     });
 
-    await fs.mkdir(PDF_DIR, { recursive: true });
-    await fs.writeFile(pdfPath, pdfBuffer);
+    const buffer = Buffer.from(pdfBuffer);
 
-    return pdfBuffer;
+    await fs.mkdir(PDF_DIR, { recursive: true });
+    await fs.writeFile(pdfPath, buffer);
+
+    return buffer;
   } finally {
     await page.close();
   }
