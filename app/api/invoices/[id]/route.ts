@@ -16,7 +16,7 @@ interface LoadInput {
 interface DeductionInput {
   deduction_type: string;
   amount: string | number;
-  note?: string;
+  note?: string | null;
 }
 
 export async function GET(
@@ -170,7 +170,7 @@ export async function PUT(
                     invoice_id: invoiceId,
                     deduction_type: d.deduction_type,
                     amount: parseFloat(d.amount.toString()),
-                    note: d.note
+                    note: d.note ?? undefined
                 }))
             })
         }
