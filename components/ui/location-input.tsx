@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { US_STATES, normalizeState, filterStates } from '@/lib/us-states';
 
-interface StateAutocompleteProps {
+interface LocationInputProps {
   value: string;
   onChange: (value: string) => void;
   onBlur?: () => void;
@@ -14,18 +14,18 @@ interface StateAutocompleteProps {
   name?: string;
 }
 
-export function StateAutocomplete({
+export function LocationInput({
   value,
   onChange,
   onBlur,
-  placeholder = 'ST',
+  placeholder = 'City, ST',
   className = '',
   error = false,
   id,
   name,
-}: StateAutocompleteProps) {
-  const [isOpen, setIsOpen] = useState(false);
+}: LocationInputProps) {
   const [inputValue, setInputValue] = useState(value);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [filteredStates, setFilteredStates] = useState(US_STATES);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -36,46 +36,72 @@ export function StateAutocomplete({
     setInputValue(value);
   }, [value]);
 
+  // Check if we're typing after a comma (state portion)
+  const getStateQuery = (text: string): string | null => {
+    const commaIndex = text.lastIndexOf(',');
+    if (commaIndex === -1) return null;
+    const afterComma = text.slice(commaIndex + 1).trim();
+    return afterComma;
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     setInputValue(newValue);
-    setFilteredStates(filterStates(newValue));
-    setHighlightedIndex(-1);
-    setIsOpen(true);
+    onChange(newValue);
+
+    // Check if typing after comma for state suggestions
+    const stateQuery = getStateQuery(newValue);
+    if (stateQuery !== null) {
+      setFilteredStates(filterStates(stateQuery));
+      setShowSuggestions(true);
+      setHighlightedIndex(-1);
+    } else {
+      setShowSuggestions(false);
+    }
   };
 
-  const handleSelect = (code: string) => {
-    setInputValue(code);
-    onChange(code);
-    setIsOpen(false);
+  const handleSelectState = (stateCode: string) => {
+    const commaIndex = inputValue.lastIndexOf(',');
+    if (commaIndex !== -1) {
+      const city = inputValue.slice(0, commaIndex).trim();
+      const newValue = `${city}, ${stateCode}`;
+      setInputValue(newValue);
+      onChange(newValue);
+    }
+    setShowSuggestions(false);
     setHighlightedIndex(-1);
+    inputRef.current?.focus();
+  };
+
+  const normalizeValue = (text: string): string => {
+    const commaIndex = text.lastIndexOf(',');
+    if (commaIndex === -1) return text;
+
+    const city = text.slice(0, commaIndex).trim();
+    const statePart = text.slice(commaIndex + 1).trim();
+    const normalizedState = normalizeState(statePart);
+
+    if (normalizedState) {
+      return `${city}, ${normalizedState}`;
+    }
+    return text;
   };
 
   const handleBlur = () => {
-    // Normalize on blur
     setTimeout(() => {
-      const normalized = normalizeState(inputValue);
-      if (normalized) {
+      // Normalize the value on blur
+      const normalized = normalizeValue(inputValue);
+      if (normalized !== inputValue) {
         setInputValue(normalized);
         onChange(normalized);
-      } else if (inputValue.trim() === '') {
-        onChange('');
       }
-      // Keep invalid input to show error
-      setIsOpen(false);
+      setShowSuggestions(false);
       onBlur?.();
     }, 150);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!isOpen) {
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        setIsOpen(true);
-        setFilteredStates(filterStates(inputValue));
-        e.preventDefault();
-      }
-      return;
-    }
+    if (!showSuggestions) return;
 
     switch (e.key) {
       case 'ArrowDown':
@@ -91,26 +117,21 @@ export function StateAutocomplete({
       case 'Enter':
         e.preventDefault();
         if (highlightedIndex >= 0 && filteredStates[highlightedIndex]) {
-          handleSelect(filteredStates[highlightedIndex].code);
-        } else {
-          const normalized = normalizeState(inputValue);
-          if (normalized) {
-            handleSelect(normalized);
-          }
+          handleSelectState(filteredStates[highlightedIndex].code);
         }
         break;
       case 'Escape':
-        setIsOpen(false);
+        setShowSuggestions(false);
         setHighlightedIndex(-1);
         break;
       case 'Tab':
-        // Allow tab to work normally but normalize first
-        const normalized = normalizeState(inputValue);
-        if (normalized) {
+        // Normalize before tabbing away
+        const normalized = normalizeValue(inputValue);
+        if (normalized !== inputValue) {
           setInputValue(normalized);
           onChange(normalized);
         }
-        setIsOpen(false);
+        setShowSuggestions(false);
         break;
     }
   };
@@ -124,7 +145,7 @@ export function StateAutocomplete({
   }, [highlightedIndex]);
 
   const baseInputClass =
-    'block w-full border bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a67e7] p-2 sm:text-sm uppercase';
+    'block w-full border bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a67e7] p-2 sm:text-sm';
   const errorClass = error ? 'border-red-500' : 'border-zinc-700';
 
   return (
@@ -136,26 +157,21 @@ export function StateAutocomplete({
         name={name}
         value={inputValue}
         onChange={handleInputChange}
-        onFocus={() => {
-          setFilteredStates(filterStates(inputValue));
-          setIsOpen(true);
-        }}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         autoComplete="off"
         className={`${baseInputClass} ${errorClass} ${className}`}
-        maxLength={20}
       />
-      {isOpen && filteredStates.length > 0 && (
+      {showSuggestions && filteredStates.length > 0 && (
         <ul
           ref={listRef}
           className="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-lg bg-zinc-800 border border-zinc-700 shadow-lg"
         >
-          {filteredStates.slice(0, 10).map((state, index) => (
+          {filteredStates.slice(0, 8).map((state, index) => (
             <li
               key={state.code}
-              onClick={() => handleSelect(state.code)}
+              onClick={() => handleSelectState(state.code)}
               onMouseEnter={() => setHighlightedIndex(index)}
               className={`cursor-pointer px-3 py-2 text-sm ${
                 index === highlightedIndex
@@ -170,4 +186,32 @@ export function StateAutocomplete({
       )}
     </div>
   );
+}
+
+/**
+ * Validate location format: "City, ST" with valid US state
+ */
+export function validateLocation(value: string): { valid: boolean; error?: string } {
+  if (!value || !value.trim()) {
+    return { valid: false, error: 'Location is required' };
+  }
+
+  const commaIndex = value.lastIndexOf(',');
+  if (commaIndex === -1) {
+    return { valid: false, error: 'Format: City, ST' };
+  }
+
+  const city = value.slice(0, commaIndex).trim();
+  const statePart = value.slice(commaIndex + 1).trim();
+
+  if (!city) {
+    return { valid: false, error: 'City is required' };
+  }
+
+  const normalizedState = normalizeState(statePart);
+  if (!normalizedState) {
+    return { valid: false, error: 'Invalid state' };
+  }
+
+  return { valid: true };
 }

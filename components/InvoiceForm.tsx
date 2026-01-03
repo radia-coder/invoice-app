@@ -5,8 +5,8 @@ import { useForm, useFieldArray, Controller, type FieldErrors } from 'react-hook
 import { Plus, Trash, Save, Eye, EyeOff } from 'lucide-react';
 import { InvoiceTemplate } from './InvoiceTemplate';
 import { useRouter } from 'next/navigation';
-import { StateAutocomplete } from './ui/state-autocomplete';
-import { formatLocation, parseLocation, isValidStateCode } from '@/lib/us-states';
+import { LocationInput, validateLocation } from './ui/location-input';
+import { normalizeState } from '@/lib/us-states';
 
 interface Company {
   id: number;
@@ -41,10 +41,8 @@ interface Driver {
 
 interface LoadItem {
   load_ref?: string;
-  from_city: string;
-  from_state: string;
-  to_city: string;
-  to_state: string;
+  from_location: string;
+  to_location: string;
   load_date: string;
   amount: number | string;
 }
@@ -138,19 +136,13 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
         due_date: formatDate(initialData.due_date || ''),
         notes: initialData.notes || '',
         invoice_number: initialData.invoice_number,
-        loads: initialData.loads.map((l) => {
-            const fromParsed = parseLocation(l.from_location);
-            const toParsed = parseLocation(l.to_location);
-            return {
-                load_ref: l.load_ref || '',
-                from_city: fromParsed.city,
-                from_state: fromParsed.state || '',
-                to_city: toParsed.city,
-                to_state: toParsed.state || '',
-                load_date: formatDate(l.load_date),
-                amount: l.amount
-            };
-        }),
+        loads: initialData.loads.map((l) => ({
+            load_ref: l.load_ref || '',
+            from_location: l.from_location,
+            to_location: l.to_location,
+            load_date: formatDate(l.load_date),
+            amount: l.amount
+        })),
         deductions: initialData.deductions.map((d) => ({
             deduction_type: d.deduction_type,
             amount: d.amount,
@@ -167,7 +159,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
       status: 'draft',
       due_date: '',
       notes: '',
-      loads: [{ load_ref: '', from_city: '', from_state: '', to_city: '', to_state: '', load_date: '', amount: 0 }],
+      loads: [{ load_ref: '', from_location: '', to_location: '', load_date: '', amount: 0 }],
       deductions: []
     }
   });
@@ -333,15 +325,26 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
     }
   };
 
+  // Helper to normalize location: "Columbus, Ohio" -> "Columbus, OH"
+  const normalizeLocation = (location: string): string => {
+    if (!location) return location;
+    const commaIndex = location.lastIndexOf(',');
+    if (commaIndex === -1) return location;
+    const city = location.slice(0, commaIndex).trim();
+    const statePart = location.slice(commaIndex + 1).trim();
+    const normalized = normalizeState(statePart);
+    return normalized ? `${city}, ${normalized}` : location;
+  };
+
   const onSubmit = async (data: InvoiceFormData) => {
     setSubmitting(true);
     clearErrors();
     try {
-      // Combine city + state into from_location and to_location for API
+      // Normalize locations to ensure "City, ST" format
       const transformedLoads = data.loads.map((l: LoadItem) => ({
         load_ref: l.load_ref,
-        from_location: formatLocation(l.from_city, l.from_state),
-        to_location: formatLocation(l.to_city, l.to_state),
+        from_location: normalizeLocation(l.from_location),
+        to_location: normalizeLocation(l.to_location),
         load_date: l.load_date,
         amount: parseFloat(l.amount.toString())
       }));
@@ -456,8 +459,8 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
       company: comp,
       driver: drv,
       loads: watchedLoads.map((l: LoadItem) => ({
-          from_location: formatLocation(l.from_city, l.from_state),
-          to_location: formatLocation(l.to_city, l.to_state),
+          from_location: l.from_location,
+          to_location: l.to_location,
           load_date: l.load_date,
           amount: Number(l.amount),
           load_ref: l.load_ref
@@ -635,7 +638,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
       <div className="border-t border-zinc-800 pt-6">
         <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-medium leading-6 text-white">Loads</h3>
-            <button type="button" onClick={() => appendLoad({ load_ref: '', from_city: '', from_state: '', to_city: '', to_state: '', load_date: '', amount: 0 })} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-[#7a67e7] bg-[#7a67e7]/10 hover:bg-[#7a67e7]/20 transition-colors">
+            <button type="button" onClick={() => appendLoad({ load_ref: '', from_location: '', to_location: '', load_date: '', amount: 0 })} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-[#7a67e7] bg-[#7a67e7]/10 hover:bg-[#7a67e7]/20 transition-colors">
                 <Plus className="w-4 h-4 mr-1" /> Add Load
             </button>
         </div>
@@ -645,12 +648,10 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                     <tr>
                         <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">Date PU *</th>
                         <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">Load</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">From City</th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-zinc-400 uppercase w-20">ST</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">To City</th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-zinc-400 uppercase w-20">ST</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">From (ST)</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">To (ST)</th>
                         <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">Amount</th>
-                        <th className="px-3 py-3"></th>
+                        <th className="px-3 py-3"><span className="sr-only">Actions</span></th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800">
@@ -668,58 +669,51 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                             </td>
                             <td className="px-2 py-2"><input type="text" {...register(`loads.${index}.load_ref` as const)} className="block w-full border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a67e7] border p-2 sm:text-sm" placeholder="Load #" /></td>
                             <td className="px-2 py-2">
-                                <input type="text" {...register(`loads.${index}.from_city` as const, { required: 'City required' })} className="block w-full border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a67e7] border p-2 sm:text-sm" placeholder="City" />
-                                {errors.loads?.[index]?.from_city && <p className="mt-1 text-xs text-red-400">Required</p>}
-                            </td>
-                            <td className="px-1 py-2 w-20">
                                 <Controller
-                                    name={`loads.${index}.from_state` as const}
+                                    name={`loads.${index}.from_location` as const}
                                     control={control}
                                     rules={{
-                                        required: 'State required',
-                                        validate: (v) => !v || isValidStateCode(v) || 'Invalid state'
+                                        required: 'Required',
+                                        validate: (v) => validateLocation(v).valid || validateLocation(v).error
                                     }}
                                     render={({ field }) => (
-                                        <StateAutocomplete
+                                        <LocationInput
                                             value={field.value || ''}
                                             onChange={field.onChange}
                                             onBlur={field.onBlur}
-                                            placeholder="ST"
-                                            error={!!errors.loads?.[index]?.from_state}
+                                            placeholder="City, ST"
+                                            error={!!errors.loads?.[index]?.from_location}
                                         />
                                     )}
                                 />
-                                {errors.loads?.[index]?.from_state && <p className="mt-1 text-xs text-red-400">{errors.loads[index]?.from_state?.message}</p>}
+                                {errors.loads?.[index]?.from_location && <p className="mt-1 text-xs text-red-400">{errors.loads[index]?.from_location?.message}</p>}
                             </td>
                             <td className="px-2 py-2">
-                                <input type="text" {...register(`loads.${index}.to_city` as const, { required: 'City required' })} className="block w-full border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a67e7] border p-2 sm:text-sm" placeholder="City" />
-                                {errors.loads?.[index]?.to_city && <p className="mt-1 text-xs text-red-400">Required</p>}
-                            </td>
-                            <td className="px-1 py-2 w-20">
                                 <Controller
-                                    name={`loads.${index}.to_state` as const}
+                                    name={`loads.${index}.to_location` as const}
                                     control={control}
                                     rules={{
-                                        required: 'State required',
-                                        validate: (v) => !v || isValidStateCode(v) || 'Invalid state'
+                                        required: 'Required',
+                                        validate: (v) => validateLocation(v).valid || validateLocation(v).error
                                     }}
                                     render={({ field }) => (
-                                        <StateAutocomplete
+                                        <LocationInput
                                             value={field.value || ''}
                                             onChange={field.onChange}
                                             onBlur={field.onBlur}
-                                            placeholder="ST"
-                                            error={!!errors.loads?.[index]?.to_state}
+                                            placeholder="City, ST"
+                                            error={!!errors.loads?.[index]?.to_location}
                                         />
                                     )}
                                 />
-                                {errors.loads?.[index]?.to_state && <p className="mt-1 text-xs text-red-400">{errors.loads[index]?.to_state?.message}</p>}
+                                {errors.loads?.[index]?.to_location && <p className="mt-1 text-xs text-red-400">{errors.loads[index]?.to_location?.message}</p>}
                             </td>
                             <td className="px-2 py-2"><input type="number" step="0.01" {...register(`loads.${index}.amount` as const, { required: true })} className="block w-full border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a67e7] border p-2 sm:text-sm" placeholder="0.00" /></td>
                             <td className="px-2 py-2 text-center">
                                 <button
                                   type="button"
                                   onClick={() => removeLoad(index)}
+                                  title="Remove load"
                                   className="inline-flex items-center justify-center rounded-md bg-[#301b1f] p-2 text-red-300 hover:bg-[#3a2428] transition-colors"
                                 >
                                   <Trash className="w-4 h-4" />
