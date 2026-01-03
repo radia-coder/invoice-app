@@ -10,7 +10,8 @@ import {
     Building2,
     Users,
     MenuIcon,
-    LogOut
+    LogOut,
+    Shield
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetFooter } from '@/components/ui/sheet';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -18,12 +19,15 @@ import { cn } from '@/lib/utils';
 
 interface FloatingHeaderProps {
     userEmail?: string;
+    userRole?: string;
 }
 
-export function FloatingHeader({ userEmail }: FloatingHeaderProps) {
+export function FloatingHeader({ userEmail, userRole }: FloatingHeaderProps) {
     const [open, setOpen] = React.useState(false);
     const [loggingOut, setLoggingOut] = React.useState(false);
     const router = useRouter();
+
+    const isSuperAdmin = userRole === 'super_admin';
 
     const links = [
         { label: 'Dashboard', href: '/dashboard', icon: FileText },
@@ -31,6 +35,7 @@ export function FloatingHeader({ userEmail }: FloatingHeaderProps) {
         { label: 'Reports', href: '/reports', icon: BarChart3 },
         { label: 'Company', href: '/company', icon: Building2 },
         { label: 'Drivers', href: '/drivers', icon: Users },
+        ...(isSuperAdmin ? [{ label: 'Sessions', href: '/sessions', icon: Shield }] : []),
     ];
 
     const handleLogout = async () => {

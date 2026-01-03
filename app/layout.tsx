@@ -4,6 +4,7 @@ import "./globals.css";
 import { getSessionUser } from '@/lib/auth';
 import { FloatingHeader } from '@/components/ui/floating-header';
 import AppContainer from '@/components/ui/app-container';
+import { MobileBlocker } from '@/components/ui/mobile-blocker';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -27,18 +28,20 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.className} bg-zinc-950 min-h-screen text-gray-100`}>
-        {user && (
-          <div className="pt-4">
+        <MobileBlocker>
+          {user && (
+            <div className="pt-4">
+              <AppContainer>
+                <FloatingHeader userEmail={user.email} userRole={user.role} />
+              </AppContainer>
+            </div>
+          )}
+          <main className={user ? "py-6" : ""}>
             <AppContainer>
-              <FloatingHeader userEmail={user.email} />
+              {children}
             </AppContainer>
-          </div>
-        )}
-        <main className={user ? "py-6" : ""}>
-          <AppContainer>
-            {children}
-          </AppContainer>
-        </main>
+          </main>
+        </MobileBlocker>
       </body>
     </html>
   );

@@ -116,12 +116,36 @@ model DeductionType {
 }
 
 model User {
-  id            Int      @id @default(autoincrement())
-  email         String   @unique
+  id            Int           @id @default(autoincrement())
+  email         String        @unique
   password_hash String
-  role          String   @default("admin") // "admin", "viewer", "super_admin"
+  role          String        @default("admin") // "admin", "viewer", "super_admin"
   company_id    Int?
-  created_at    DateTime @default(now())
+  created_at    DateTime      @default(now())
 
-  company       Company? @relation(fields: [company_id], references: [id])
+  company       Company?      @relation(fields: [company_id], references: [id])
+  sessions      UserSession[]
+}
+
+model UserSession {
+  id            Int       @id @default(autoincrement())
+  user_id       Int
+  session_token String    @unique
+  ip_address    String?
+  user_agent    String?   // Full user agent string
+  device_type   String?   // "desktop", "mobile", "tablet"
+  os            String?   // "Windows", "macOS", "iOS", "Android", "Linux"
+  browser       String?   // "Chrome", "Firefox", "Safari", etc.
+  city          String?
+  country       String?
+  is_active     Boolean   @default(true)
+  created_at    DateTime  @default(now())
+  last_active   DateTime  @default(now())
+  expires_at    DateTime
+
+  user          User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([session_token])
+  @@index([is_active])
 }
