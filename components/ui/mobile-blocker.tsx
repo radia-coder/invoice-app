@@ -32,7 +32,7 @@ export function MobileBlocker({ children }: { children: React.ReactNode }) {
 
   if (isMobile) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+      <div className="min-h-screen bg-zinc-950 flex items-start justify-center pt-32">
         <div className="text-center">
           <svg
             className="w-24 h-24 mx-auto text-purple-500 mb-4"
