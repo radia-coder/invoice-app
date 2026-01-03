@@ -38,7 +38,10 @@ export default async function EditInvoicePage({ params }: { params: Promise<{ id
           <p className="mt-1 text-sm text-zinc-400">Update invoice details and save changes</p>
         </div>
       </div>
-      <InvoiceForm companies={companies} initialData={invoice} />
+      <InvoiceForm companies={companies} initialData={{
+        ...invoice,
+        status: invoice.status as 'draft' | 'sent' | 'paid'
+      }} />
     </div>
   );
 }
