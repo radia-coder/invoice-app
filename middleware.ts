@@ -17,7 +17,11 @@ const verifySessionTokenEdge = async (token: string) => {
   const [body, signature] = token.split('.');
   if (!body || !signature) return null;
 
-  const secret = process.env.AUTH_SECRET || 'dev-only-secret';
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) {
+    console.error('AUTH_SECRET not configured');
+    return null;
+  }
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
     'raw',

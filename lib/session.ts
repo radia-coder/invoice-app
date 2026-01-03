@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 
 export const SESSION_COOKIE_NAME = 'invoice_session';
-const SESSION_TTL_SECONDS = 60 * 60 * 24 * 365 * 10;
+const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days (was 10 years)
 
 export interface SessionPayload {
   uid: number;
@@ -11,7 +11,11 @@ export interface SessionPayload {
 }
 
 const getSecret = () => {
-  return process.env.AUTH_SECRET || 'dev-only-secret';
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) {
+    throw new Error('AUTH_SECRET environment variable is required');
+  }
+  return secret;
 };
 
 const sign = (data: string) => {
