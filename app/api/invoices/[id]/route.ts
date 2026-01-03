@@ -6,7 +6,7 @@ import fs from 'fs/promises'
 import path from 'path'
 
 interface LoadInput {
-  load_ref?: string;
+  load_ref?: string | null;
   from_location: string;
   to_location: string;
   load_date: string;
@@ -155,7 +155,7 @@ export async function PUT(
             await tx.invoiceLoad.createMany({
                 data: loads.map((l: LoadInput) => ({
                     invoice_id: invoiceId,
-                    load_ref: l.load_ref,
+                    load_ref: l.load_ref ?? undefined,
                     from_location: l.from_location,
                     to_location: l.to_location,
                     load_date: new Date(l.load_date),
