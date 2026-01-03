@@ -1,6 +1,7 @@
 import React from 'react';
 import { format } from 'date-fns';
 import { calculateInvoiceTotals } from '@/lib/invoice-calculations';
+import { getCompanyDetails } from '@/lib/company-config';
 
 // Helper for currency
 const formatCurrency = (amount: number, currency = 'USD') => {
@@ -72,6 +73,11 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
   const brandColor = /^#[0-9a-fA-F]{3,8}$/.test(data.company.brand_color || '')
     ? data.company.brand_color
     : '#2563eb';
+
+  // Get company email and address from config (falls back to data if not in config)
+  const companyDetails = getCompanyDetails(data.company.name);
+  const companyEmail = companyDetails.email || data.company.email;
+  const companyAddress = companyDetails.address || data.company.address;
 
   // Determine driver type and calculate accordingly
   const isCompanyDriver = data.driver.type === 'Company Driver';
@@ -158,8 +164,8 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
           </div>
           <div class="px-6 py-4 flex justify-between text-sm text-gray-600">
             <div>
-              ${data.company.address ? `<p>${escapeHtml(data.company.address)}</p>` : ''}
-              ${data.company.email ? `<p>${escapeHtml(data.company.email)}</p>` : ''}
+              ${companyAddress ? `<p>${escapeHtml(companyAddress)}</p>` : ''}
+              ${companyEmail ? `<p>${escapeHtml(companyEmail)}</p>` : ''}
               ${data.company.phone ? `<p>${escapeHtml(data.company.phone)}</p>` : ''}
             </div>
             <div class="text-right">
@@ -178,8 +184,8 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
               ${escapeHtml(data.company.name)}
             </h1>
             <div class="text-gray-500 space-y-1">
-              ${data.company.address ? `<p>${escapeHtml(data.company.address)}</p>` : ''}
-              ${data.company.email ? `<p>${escapeHtml(data.company.email)}</p>` : ''}
+              ${companyAddress ? `<p>${escapeHtml(companyAddress)}</p>` : ''}
+              ${companyEmail ? `<p>${escapeHtml(companyEmail)}</p>` : ''}
               ${data.company.phone ? `<p>${escapeHtml(data.company.phone)}</p>` : ''}
             </div>
           </div>
