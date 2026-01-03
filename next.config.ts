@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Enable compression
+  compress: true,
+
+  // Optimize images
   images: {
     remotePatterns: [
       {
@@ -8,9 +12,15 @@ const nextConfig: NextConfig = {
         hostname: 'images.unsplash.com',
       },
     ],
+    formats: ['image/avif', 'image/webp'],
   },
+
+  // Optimize production builds
+  productionBrowserSourceMaps: false,
+
   async headers() {
     return [
+      // Security headers for all routes
       {
         source: '/(.*)',
         headers: [
@@ -33,6 +43,36 @@ const nextConfig: NextConfig = {
           {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(), geolocation=()',
+          },
+        ],
+      },
+      // Cache static assets for 1 year
+      {
+        source: '/(.*)\\.(js|css|woff|woff2|ttf|eot)$',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      // Cache images for 1 month
+      {
+        source: '/(.*)\\.(png|jpg|jpeg|gif|svg|ico|webp|avif)$',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=2592000, stale-while-revalidate=86400',
+          },
+        ],
+      },
+      // Cache favicon
+      {
+        source: '/favicon.png',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=2592000',
           },
         ],
       },
