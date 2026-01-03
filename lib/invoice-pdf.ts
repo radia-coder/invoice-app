@@ -8,6 +8,40 @@ import { invoicePdfStyles } from '@/lib/invoice-pdf-styles';
 const PDF_DIR = path.join(process.cwd(), 'storage', 'pdfs');
 const LOGO_CACHE_DIR = path.join(process.cwd(), 'storage', 'logo-cache');
 
+const formatPdfDate = (value: string | Date | null | undefined) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+  }).format(date);
+};
+
+const sanitizeFilenamePart = (value: string) =>
+  value
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^A-Za-z0-9-]/g, '');
+
+export const buildInvoicePdfFilename = (
+  driverName: string | null | undefined,
+  dueDate: string | Date | null | undefined,
+  fallbackInvoiceNumber: string
+) => {
+  const safeName = driverName ? sanitizeFilenamePart(driverName) : '';
+  const datePart = formatPdfDate(dueDate);
+  const baseName = [safeName, datePart].filter(Boolean).join(' ');
+
+  if (!baseName) {
+    const fallback = sanitizeFilenamePart(fallbackInvoiceNumber || 'Invoice');
+    return `${fallback || 'Invoice'}.pdf`;
+  }
+
+  return `${baseName}.pdf`;
+};
+
 type InvoicePdfInput = InvoiceData & {
   id: number;
   updated_at: Date;

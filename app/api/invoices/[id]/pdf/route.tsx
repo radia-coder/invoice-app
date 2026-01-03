@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
-import { getInvoicePdfBuffer } from '@/lib/invoice-pdf'
+import { buildInvoicePdfFilename, getInvoicePdfBuffer } from '@/lib/invoice-pdf'
 import { requireApiAuth } from '@/lib/api-auth'
 import { type InvoiceData } from '@/components/InvoiceTemplate'
 
@@ -55,6 +55,12 @@ export async function GET(
     loads: invoice.loads,
     deductions: invoice.deductions
   }
+  const filename = buildInvoicePdfFilename(
+    invoice.driver?.name,
+    invoice.due_date || invoice.invoice_date,
+    invoice.invoice_number
+  )
+
   try {
     const pdfBuffer = await getInvoicePdfBuffer({
       ...invoiceData,
@@ -65,7 +71,7 @@ export async function GET(
     return new NextResponse(pdfBuffer as BodyInit, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${invoice.invoice_number}.pdf"`,
+        'Content-Disposition': `attachment; filename="${filename}"`,
         'Cache-Control': 'private, max-age=3600, must-revalidate',
         'ETag': etag,
         'Last-Modified': lastModified

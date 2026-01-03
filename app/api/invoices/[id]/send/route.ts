@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { requireApiAuth } from '@/lib/api-auth';
-import { getInvoicePdfBuffer } from '@/lib/invoice-pdf';
+import { buildInvoicePdfFilename, getInvoicePdfBuffer } from '@/lib/invoice-pdf';
 import { type InvoiceData } from '@/components/InvoiceTemplate';
 import nodemailer from 'nodemailer';
 
@@ -59,6 +59,11 @@ export async function POST(
     }
 
     const pdfBuffer = await getPdfBuffer(invoice);
+    const filename = buildInvoicePdfFilename(
+      invoice.driver?.name,
+      invoice.due_date || invoice.invoice_date,
+      invoice.invoice_number
+    );
 
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
@@ -79,7 +84,7 @@ export async function POST(
       text: message || `Attached is invoice ${invoice.invoice_number}.`,
       attachments: [
         {
-          filename: `${invoice.invoice_number}.pdf`,
+          filename,
           content: Buffer.from(pdfBuffer)
         }
       ]
