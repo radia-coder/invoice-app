@@ -5,6 +5,7 @@ const SESSION_COOKIE_NAME = 'invoice_session';
 
 const PUBLIC_PATHS = ['/login', '/'];
 const PUBLIC_PREFIXES = ['/_next', '/favicon.ico', '/public'];
+const PUBLIC_FILE = /\.(?:png|jpg|jpeg|gif|webp|svg|ico|txt|xml|json|map|woff2?|ttf|eot)$/i;
 
 const decodeBase64Url = (input: string) => {
   const base64 = input.replace(/-/g, '+').replace(/_/g, '/');
@@ -42,6 +43,10 @@ const verifySessionTokenEdge = async (token: string) => {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (PUBLIC_FILE.test(pathname)) {
+    return NextResponse.next();
+  }
 
   if (PUBLIC_PATHS.includes(pathname) || PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();

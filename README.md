@@ -29,11 +29,16 @@ A Next.js web application for generating driver settlement invoices for trucking
    ```
 
 2. **Database Setup**
-   Initialize the SQLite database and seed the initial data:
+   Initialize the SQLite database and apply migrations:
    ```bash
-   npx prisma migrate dev --name init
-   # Seed runs automatically after migration, but if needed:
+   # Apply all pending migrations and generate Prisma Client
+   npx prisma migrate dev
+   
+   # Or seed the database if needed:
    npx prisma db seed
+   
+   # To view/manage database in Prisma Studio:
+   npx prisma studio
    ```
 
 3. **Environment Variables**
