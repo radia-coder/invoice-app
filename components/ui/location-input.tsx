@@ -19,7 +19,7 @@ export function LocationInput({
   value,
   onChange,
   onBlur,
-  placeholder = 'City, ST',
+  placeholder = 'State or ST',
   className = '',
   error = false,
   id,
@@ -42,9 +42,11 @@ export function LocationInput({
   // Check if we're typing after a comma (state portion)
   const getStateQuery = (text: string): string | null => {
     const commaIndex = text.lastIndexOf(',');
-    if (commaIndex === -1) return null;
-    const afterComma = text.slice(commaIndex + 1).trim();
-    return afterComma;
+    if (commaIndex !== -1) {
+      return text.slice(commaIndex + 1).trim();
+    }
+    const trimmed = text.trim();
+    return trimmed ? trimmed : null;
   };
 
   // Update dropdown position when showing suggestions
@@ -78,12 +80,13 @@ export function LocationInput({
 
   const handleSelectState = (stateCode: string) => {
     const commaIndex = inputValue.lastIndexOf(',');
+    let newValue = stateCode;
     if (commaIndex !== -1) {
       const city = inputValue.slice(0, commaIndex).trim();
-      const newValue = `${city}, ${stateCode}`;
-      setInputValue(newValue);
-      onChange(newValue);
+      newValue = city ? `${city}, ${stateCode}` : stateCode;
     }
+    setInputValue(newValue);
+    onChange(newValue);
     setShowSuggestions(false);
     setHighlightedIndex(-1);
     inputRef.current?.focus();
@@ -91,14 +94,17 @@ export function LocationInput({
 
   const normalizeValue = (text: string): string => {
     const commaIndex = text.lastIndexOf(',');
-    if (commaIndex === -1) return text;
+    if (commaIndex === -1) {
+      const normalizedState = normalizeState(text);
+      return normalizedState || text;
+    }
 
     const city = text.slice(0, commaIndex).trim();
     const statePart = text.slice(commaIndex + 1).trim();
     const normalizedState = normalizeState(statePart);
 
     if (normalizedState) {
-      return `${city}, ${normalizedState}`;
+      return city ? `${city}, ${normalizedState}` : normalizedState;
     }
     return text;
   };
@@ -236,24 +242,28 @@ export function LocationInput({
  */
 export function validateLocation(value: string): { valid: boolean; error?: string } {
   if (!value || !value.trim()) {
-    return { valid: false, error: 'Location is required' };
+    return { valid: false, error: 'State is required' };
   }
 
   const commaIndex = value.lastIndexOf(',');
   if (commaIndex === -1) {
-    return { valid: false, error: 'Format: City, ST' };
+    const normalizedState = normalizeState(value);
+    if (!normalizedState) {
+      return { valid: false, error: 'Enter a valid US state' };
+    }
+    return { valid: true };
   }
 
   const city = value.slice(0, commaIndex).trim();
   const statePart = value.slice(commaIndex + 1).trim();
 
   if (!city) {
-    return { valid: false, error: 'City is required' };
+    return { valid: false, error: 'City is required or remove the comma' };
   }
 
   const normalizedState = normalizeState(statePart);
   if (!normalizedState) {
-    return { valid: false, error: 'Invalid state' };
+    return { valid: false, error: 'Enter a valid US state' };
   }
 
   return { valid: true };

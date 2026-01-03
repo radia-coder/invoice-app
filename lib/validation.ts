@@ -1,15 +1,21 @@
 import { z } from 'zod';
-import { isValidStateCode } from './us-states';
+import { normalizeState } from './us-states';
 
-// Validate that location is in "City, ST" format with valid state
+// Validate that location has a valid US state (state-only or "City, ST")
 const locationSchema = z.string().min(1, 'Location is required').refine(
   (val) => {
-    const parts = val.split(',').map(p => p.trim());
-    if (parts.length < 2) return false;
+    const trimmed = val.trim();
+    if (!trimmed) return false;
+    const parts = trimmed.split(',').map(p => p.trim());
+    if (parts.length === 1) {
+      return !!normalizeState(parts[0]);
+    }
+    const city = parts.slice(0, -1).join(', ').trim();
     const state = parts[parts.length - 1];
-    return isValidStateCode(state);
+    if (!city) return false;
+    return !!normalizeState(state);
   },
-  { message: 'Must be in "City, ST" format with valid US state' }
+  { message: 'Enter a valid US state (e.g. "CA" or "City, CA")' }
 );
 
 export const loadSchema = z.object({

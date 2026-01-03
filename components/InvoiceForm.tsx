@@ -329,11 +329,15 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
   const normalizeLocation = (location: string): string => {
     if (!location) return location;
     const commaIndex = location.lastIndexOf(',');
-    if (commaIndex === -1) return location;
+    if (commaIndex === -1) {
+      const normalized = normalizeState(location);
+      return normalized || location;
+    }
     const city = location.slice(0, commaIndex).trim();
     const statePart = location.slice(commaIndex + 1).trim();
     const normalized = normalizeState(statePart);
-    return normalized ? `${city}, ${normalized}` : location;
+    if (!normalized) return location;
+    return city ? `${city}, ${normalized}` : normalized;
   };
 
   const onSubmit = async (data: InvoiceFormData) => {
@@ -681,7 +685,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                                             value={field.value || ''}
                                             onChange={field.onChange}
                                             onBlur={field.onBlur}
-                                            placeholder="City, ST"
+                                            placeholder="State or ST"
                                             error={!!errors.loads?.[index]?.from_location}
                                         />
                                     )}
@@ -701,7 +705,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                                             value={field.value || ''}
                                             onChange={field.onChange}
                                             onBlur={field.onBlur}
-                                            placeholder="City, ST"
+                                            placeholder="State or ST"
                                             error={!!errors.loads?.[index]?.to_location}
                                         />
                                     )}
