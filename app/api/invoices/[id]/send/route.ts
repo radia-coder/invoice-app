@@ -125,7 +125,7 @@ export async function POST(
       attachments: [
         {
           filename: `${invoice.invoice_number}.pdf`,
-          content: pdfBuffer
+          content: Buffer.from(pdfBuffer)
         }
       ]
     });
