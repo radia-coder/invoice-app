@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import type { Company } from '@prisma/client';
 import { getSessionUser, isSuperAdmin } from '@/lib/auth';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
@@ -21,7 +22,7 @@ export default async function CompanyPage({
   const requestedCompanyId = params?.companyId ? Number(params.companyId) : null;
 
   let companyId = user?.company_id ?? null;
-  let companies = [];
+  let companies: Company[] = [];
 
   if (isSuperAdmin(user)) {
     companies = await prisma.company.findMany({ orderBy: { name: 'asc' } });
