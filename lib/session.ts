@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 
 export const SESSION_COOKIE_NAME = 'invoice_session';
-const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days (was 10 years)
+const SESSION_TTL_SECONDS = 60 * 60 * 24 * 90; // 90 days
 
 export interface SessionPayload {
   uid: number;

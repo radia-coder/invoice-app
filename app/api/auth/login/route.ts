@@ -73,7 +73,7 @@ export async function POST(request: Request) {
     const location = await getLocationFromIP(clientIP);
 
     // Save session to database
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000); // 90 days
     await prisma.userSession.create({
       data: {
         user_id: user.id,
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
       sameSite: 'strict',
       secure: true,
       path: '/',
-      maxAge: 60 * 60 * 24 * 7 // 7 days
+      maxAge: 60 * 60 * 24 * 90 // 90 days
     });
 
     return response;
