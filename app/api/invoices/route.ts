@@ -4,7 +4,7 @@ import { requireApiAuth } from '@/lib/api-auth'
 import { formatZodErrors, invoiceInputSchema } from '@/lib/validation'
 
 interface LoadInput {
-  load_ref?: string;
+  load_ref?: string | null;
   from_location: string;
   to_location: string;
   load_date: string;
@@ -14,7 +14,7 @@ interface LoadInput {
 interface DeductionInput {
   deduction_type: string;
   amount: string | number;
-  note?: string;
+  note?: string | null;
 }
 
 export async function GET() {
@@ -133,7 +133,7 @@ export async function POST(request: Request) {
         currency,
         loads: {
           create: loads.map((l: LoadInput) => ({
-            load_ref: l.load_ref,
+            load_ref: l.load_ref ?? undefined,
             from_location: l.from_location,
             to_location: l.to_location,
             load_date: new Date(l.load_date),
@@ -144,7 +144,7 @@ export async function POST(request: Request) {
           create: deductions.map((d: DeductionInput) => ({
             deduction_type: d.deduction_type,
             amount: parseFloat(d.amount.toString()),
-            note: d.note
+            note: d.note ?? undefined
           }))
         }
       }
