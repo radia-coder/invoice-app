@@ -157,7 +157,8 @@ export async function POST(request: Request) {
           create: deductions.map((d: DeductionInput) => ({
             deduction_type: d.deduction_type,
             amount: parseFloat(d.amount.toString()),
-            note: d.note ?? undefined
+            note: d.note ?? undefined,
+            deduction_date: d.deduction_date ? new Date(d.deduction_date) : null
           }))
         }
       },
