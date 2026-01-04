@@ -49,7 +49,7 @@ export default function WeeklySummaryCard({ summary }: WeeklySummaryCardProps) {
   const percentLabel = isOwnerOperator ? 'Company Cut' : 'Driver Pay';
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+    <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden flex flex-col h-full">
       {/* Card Header */}
       <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-white">
@@ -71,7 +71,7 @@ export default function WeeklySummaryCard({ summary }: WeeklySummaryCardProps) {
       </div>
 
       {/* Card Body */}
-      <div className="px-5 py-4 space-y-3">
+      <div className="px-5 py-4 space-y-3 flex-1">
         {/* Company & Driver Info */}
         <div className="flex justify-between text-sm">
           <span className="text-zinc-400">Company</span>
