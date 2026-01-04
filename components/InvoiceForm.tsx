@@ -674,7 +674,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                 <thead className="bg-zinc-800/50">
                     <tr>
                         <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">Date PU *</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">Date DEL</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">Date PU</th>
                         <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">Load</th>
                         <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">From (ST)</th>
                         <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">To (ST)</th>
