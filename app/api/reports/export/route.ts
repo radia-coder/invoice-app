@@ -100,6 +100,7 @@ function mapDeductionToExpenseKey(deductionType: string): keyof ExpenseData | nu
   if (typeUpper.includes('TOLL') || typeUpper.includes('VIOLATION')) return 'tollsViolations';
   if (typeUpper.includes('INSURANCE')) return 'insurance';
   if (typeUpper.includes('TRAILER')) return 'trailer';
+  if (typeUpper.includes('PART')) return 'parts';
   if (typeUpper.includes('PAYBACK')) return 'payback';
   if (typeUpper.includes('ELD')) return 'eld';
   if (typeUpper.includes('CAMERA')) return 'camera';
@@ -130,6 +131,7 @@ function createEmptyExpenses(): ExpenseData {
     tollsViolations: 0,
     insurance: 0,
     trailer: 0,
+    parts: 0,
     payback: 0,
     eld: 0,
     camera: 0,
@@ -150,6 +152,8 @@ function createEmptyYtdExpenses(): DriverSheetData['ytdExpenses'] {
     insurance: 0,
     payback: 0,
     advanced: 0,
+    parts: 0,
+    dispatch: 0,
   };
 }
 
@@ -167,6 +171,7 @@ function addExpenses(target: ExpenseData, source: ExpenseData) {
   target.tollsViolations += source.tollsViolations;
   target.insurance += source.insurance;
   target.trailer += source.trailer;
+  target.parts += source.parts;
   target.payback += source.payback;
   target.eld += source.eld;
   target.camera += source.camera;
@@ -188,6 +193,8 @@ function addYtdExpenses(
   target.insurance += source.insurance;
   target.payback += source.payback;
   target.advanced += source.advanced;
+  target.parts += source.parts;
+  target.dispatch += source.dispatch;
 }
 
 export async function GET(request: NextRequest) {
@@ -372,6 +379,7 @@ export async function GET(request: NextRequest) {
 
       current.ytdGross += totals.gross;
       current.ytdNetPay += totals.net;
+      current.ytdExpenses.dispatch += autoAmounts.dispatch;
 
       // Aggregate YTD expenses
       invoice.deductions.forEach((ded) => {
@@ -383,6 +391,7 @@ export async function GET(request: NextRequest) {
         else if (typeUpper.includes('CAMERA')) current.ytdExpenses.camera += ded.amount;
         else if (typeUpper.includes('MAINTENANCE')) current.ytdExpenses.maintenance += ded.amount;
         else if (typeUpper.includes('INSURANCE')) current.ytdExpenses.insurance += ded.amount;
+        else if (typeUpper.includes('PART')) current.ytdExpenses.parts += ded.amount;
         else if (typeUpper.includes('PAYBACK')) current.ytdExpenses.payback += ded.amount;
         else if (typeUpper.includes('ADVANCE')) current.ytdExpenses.advanced += ded.amount;
       });
@@ -485,7 +494,7 @@ export async function GET(request: NextRequest) {
           tax_percent: invoice.tax_percent || 0,
           driver_type: invoice.driver.type,
         });
-        expenses.driverPercent = invoice.percent || 0;
+        expenses.driverPercent = totals.percentAmount;
 
         // Map loads with REAL data
         const loads: LoadData[] = invoice.loads
@@ -508,6 +517,7 @@ export async function GET(request: NextRequest) {
           weekEnd: invoice.week_end,
           loads,
           expenses,
+          driverPercentRate: invoice.percent,
           brokerTotal: totals.gross,
           hasData: true,
         };
@@ -569,6 +579,9 @@ export async function GET(request: NextRequest) {
         addExpenses(existing.expenses, weekData.expenses);
         existing.brokerTotal += weekData.brokerTotal;
         existing.hasData = existing.hasData || weekData.hasData;
+        if (!existing.driverPercentRate && weekData.driverPercentRate) {
+          existing.driverPercentRate = weekData.driverPercentRate;
+        }
         existing.weekStart =
           weekData.weekStart < existing.weekStart ? weekData.weekStart : existing.weekStart;
         existing.weekEnd =

@@ -21,6 +21,7 @@ interface ExpenseData {
   tollsViolations: number;
   insurance: number;
   trailer: number;
+  parts: number;
   payback: number;
   eld: number;
   camera: number;
@@ -34,6 +35,7 @@ interface WeekData {
   weekEnd: Date;
   loads: LoadData[];
   expenses: ExpenseData;
+  driverPercentRate: number;
   brokerTotal: number;
   hasData: boolean; // Whether this week has actual invoice data
 }
@@ -58,6 +60,8 @@ interface DriverSheetData {
     insurance: number;
     payback: number;
     advanced: number;
+    parts: number;
+    dispatch: number;
   };
 }
 
@@ -82,9 +86,10 @@ const COLORS = {
   white: 'FFFFFFFF',
 };
 
-// Each week block is exactly 18 rows (no gaps between weeks)
-const ROWS_PER_WEEK = 18;
-const MAX_EXPENSE_ROWS = 12;
+const MAX_EXPENSE_ROWS = 13;
+const YTD_SUMMARY_ROWS = 6;
+// Each week block is exactly 25 rows (no gaps between weeks)
+const ROWS_PER_WEEK = 1 + MAX_EXPENSE_ROWS + 5 + YTD_SUMMARY_ROWS;
 const MAX_WEEKS = 50;
 const MAX_LOADS_PER_WEEK = 6;
 const TEMPLATE_WEEK_1_START = new Date(2025, 11, 21);
@@ -142,6 +147,11 @@ function formatDateForCell(date: Date | null): string {
   } catch {
     return '';
   }
+}
+
+function formatPercentValue(value: number | null | undefined): string {
+  const normalized = Number.isFinite(value) ? Number(value) : 0;
+  return Number.isInteger(normalized) ? normalized.toFixed(0) : normalized.toString();
 }
 
 function setColumnWidths(worksheet: ExcelJS.Worksheet) {
@@ -218,6 +228,8 @@ function createWeekBlock(
   });
 
   // ===== EXPENSE LABELS AND AMOUNTS (J2:K13) =====
+  const driverPercentLabel = `DRIVER ${formatPercentValue(weekData.driverPercentRate)}%`;
+
   const expenseLabels = [
     'FACTORING',
     'DISPATCH',
@@ -226,10 +238,11 @@ function createWeekBlock(
     'TOLLS/VIOLATIONS',
     'INSURANCE',
     'TRAILER',
+    'Parts',
     'PAYBACK',
     'ELD',
     'CAMERA',
-    'DRIVER ..%',
+    driverPercentLabel,
     'ADVANCED',
   ];
 
@@ -241,6 +254,7 @@ function createWeekBlock(
     weekData.expenses.tollsViolations,
     weekData.expenses.insurance,
     weekData.expenses.trailer,
+    weekData.expenses.parts,
     weekData.expenses.payback,
     weekData.expenses.eld,
     weekData.expenses.camera,
@@ -261,15 +275,13 @@ function createWeekBlock(
       bold: true,
     });
 
-    const isDriverPercent = label.startsWith('DRIVER');
-
     // Amount cell (K column)
     const amountCell = worksheet.getCell(expenseRow, 11); // Column K
-    amountCell.value = isDriverPercent ? (amount || 0) / 100 : amount || 0;
+    amountCell.value = amount || 0;
     setCellStyle(amountCell, {
       bgColor: COLORS.lightBlue,
       bold: true,
-      numFmt: isDriverPercent ? '0.##%' : '"$"#,##0.00',
+      numFmt: '"$"#,##0.00',
     });
   }
 
@@ -439,6 +451,79 @@ function createWeekBlock(
     numFmt: '"$"#,##0.00',
   });
 
+  // ===== YTD SUMMARY ROWS =====
+  const ytdSummaryStartRow = ytdNetRow + 1;
+  const ytdDriverLabel = `YTD DRIVER ${formatPercentValue(weekData.driverPercentRate)}%`;
+  const ytdExpenses = ytdData?.ytdExpenses;
+
+  const ytdLeftRows = [
+    { label: 'YTD FUEL', value: ytdExpenses?.fuel || 0 },
+    { label: 'YTD TOLLS', value: ytdExpenses?.tolls || 0 },
+    { label: 'YTD TRAILER', value: ytdExpenses?.trailer || 0 },
+    { label: 'YTD ELD', value: ytdExpenses?.eld || 0 },
+    { label: 'YTD CAMERA', value: ytdExpenses?.camera || 0 },
+    { label: ytdDriverLabel, value: ytdExpenses?.driverPercent || 0 },
+  ];
+
+  const ytdRightBaseRows = [
+    { label: 'YTD MAINTENANCE', value: ytdExpenses?.maintenance || 0 },
+    { label: 'YTD INSURANCE', value: ytdExpenses?.insurance || 0 },
+    { label: 'YTD Parts', value: ytdExpenses?.parts || 0 },
+    { label: 'YTD Dispatch', value: ytdExpenses?.dispatch || 0 },
+  ];
+
+  const ytdTotalOwe = ytdLeftRows.reduce((sum, row) => sum + row.value, 0)
+    + ytdRightBaseRows.reduce((sum, row) => sum + row.value, 0);
+
+  const ytdRightRows = [
+    ...ytdRightBaseRows,
+    { label: 'YTD TOTAL OWE', value: ytdTotalOwe },
+  ];
+
+  const ytdSummaryRowCount = Math.max(ytdLeftRows.length, ytdRightRows.length);
+  for (let idx = 0; idx < ytdSummaryRowCount; idx++) {
+    const summaryRow = ytdSummaryStartRow + idx;
+    const leftRow = ytdLeftRows[idx];
+    const rightRow = ytdRightRows[idx];
+
+    if (leftRow) {
+      const leftLabelCell = worksheet.getCell(summaryRow, 8); // H column
+      leftLabelCell.value = leftRow.label;
+      setCellStyle(leftLabelCell, {
+        bgColor: COLORS.gray,
+        bold: true,
+      });
+
+      const leftAmountCell = worksheet.getCell(summaryRow, 9); // I column
+      leftAmountCell.value = leftRow.value;
+      setCellStyle(leftAmountCell, {
+        bgColor: COLORS.lightGray,
+        bold: true,
+        numFmt: '"$"#,##0.00',
+      });
+    }
+
+    if (rightRow) {
+      const isTotal = rightRow.label === 'YTD TOTAL OWE';
+      const rightLabelCell = worksheet.getCell(summaryRow, 10); // J column
+      rightLabelCell.value = rightRow.label;
+      setCellStyle(rightLabelCell, {
+        bgColor: isTotal ? COLORS.red : COLORS.gray,
+        fontColor: isTotal ? COLORS.white : COLORS.black,
+        bold: true,
+      });
+
+      const rightAmountCell = worksheet.getCell(summaryRow, 11); // K column
+      rightAmountCell.value = rightRow.value;
+      setCellStyle(rightAmountCell, {
+        bgColor: isTotal ? COLORS.red : COLORS.lightGray,
+        fontColor: isTotal ? COLORS.white : COLORS.black,
+        bold: true,
+        numFmt: '"$"#,##0.00',
+      });
+    }
+  }
+
   // Return next row (no gap - Week 2 starts immediately after Week 1)
   return r + ROWS_PER_WEEK;
 }
@@ -464,12 +549,14 @@ function createSampleSheet(workbook: ExcelJS.Workbook) {
         tollsViolations: 0,
         insurance: 0,
         trailer: 0,
+        parts: 0,
         payback: 0,
         eld: 0,
         camera: 0,
         driverPercent: 0,
         advanced: 0,
       },
+      driverPercentRate: 0,
       brokerTotal: 0,
       hasData: false,
     };
@@ -510,12 +597,14 @@ function createDriverSheet(
         tollsViolations: 0,
         insurance: 0,
         trailer: 0,
+        parts: 0,
         payback: 0,
         eld: 0,
         camera: 0,
         driverPercent: 0,
         advanced: 0,
       },
+      driverPercentRate: 0,
       brokerTotal: 0,
       hasData: false,
     };
