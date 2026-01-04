@@ -47,9 +47,22 @@ function formatDate(date: Date): string {
 export default function WeeklySummaryCard({ summary }: WeeklySummaryCardProps) {
   const isOwnerOperator = summary.driverType !== 'Company Driver';
   const percentLabel = isOwnerOperator ? 'Company Cut' : 'Driver Pay';
+  const fixedDeductionRows = summary.fixedDeductions.length > 0 ? summary.fixedDeductions.length + 1 : 0;
+  const taxRows = summary.taxPercent > 0 ? 1 : 0;
+  const baseRows = 6;
+  const totalRows = baseRows + fixedDeductionRows + taxRows;
+  const isCompact = totalRows <= 6;
+  const isDense = totalRows >= 10;
+  const isTight = isCompact || isDense;
+  const useScroll = isDense;
+  const bodyPaddingClass = isTight ? 'py-3' : 'py-4';
+  const bodySpacingClass = isTight ? 'space-y-2' : 'space-y-3';
+  const rowTextClass = isTight ? 'text-xs leading-tight' : 'text-sm leading-snug';
+  const dividerClass = isTight ? 'border-t border-zinc-800 my-2' : 'border-t border-zinc-800 my-3';
+  const listSpacingClass = isTight ? 'space-y-1' : 'space-y-2';
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden flex flex-col h-full">
+    <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden flex flex-col h-[420px]">
       {/* Card Header */}
       <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-white">
@@ -71,35 +84,37 @@ export default function WeeklySummaryCard({ summary }: WeeklySummaryCardProps) {
       </div>
 
       {/* Card Body */}
-      <div className="px-5 py-4 space-y-3 flex-1">
+      <div
+        className={`px-5 ${bodyPaddingClass} ${bodySpacingClass} flex-1 min-h-0 ${useScroll ? 'overflow-y-auto pr-1' : ''}`}
+      >
         {/* Company & Driver Info */}
-        <div className="flex justify-between text-sm">
+        <div className={`flex justify-between ${rowTextClass}`}>
           <span className="text-zinc-400">Company</span>
           <span className="text-white font-medium">{summary.companyName}</span>
         </div>
-        <div className="flex justify-between text-sm">
+        <div className={`flex justify-between ${rowTextClass}`}>
           <span className="text-zinc-400">Driver</span>
           <span className="text-white font-medium">{summary.driverName}</span>
         </div>
 
-        <div className="border-t border-zinc-800 my-3" />
+        <div className={dividerClass} />
 
         {/* Loads */}
-        <div className="flex justify-between text-sm">
+        <div className={`flex justify-between ${rowTextClass}`}>
           <span className="text-zinc-400">Loads</span>
           <span className="text-white font-medium">{summary.loadsCount}</span>
         </div>
 
         {/* Gross Total */}
-        <div className="flex justify-between text-sm">
+        <div className={`flex justify-between ${rowTextClass}`}>
           <span className="text-zinc-400">Gross Total</span>
           <span className="text-white font-medium">{formatMoney(summary.grossTotal)}</span>
         </div>
 
-        <div className="border-t border-zinc-800 my-3" />
+        <div className={dividerClass} />
 
         {/* Company Cut / Driver Pay */}
-        <div className="flex justify-between text-sm">
+        <div className={`flex justify-between ${rowTextClass}`}>
           <span className="text-zinc-400">{percentLabel} ({summary.percentValue}%)</span>
           <span className={isOwnerOperator ? 'text-red-400 font-medium' : 'text-emerald-400 font-medium'}>
             {isOwnerOperator ? '-' : ''}{formatMoney(summary.percentAmount)}
@@ -107,7 +122,7 @@ export default function WeeklySummaryCard({ summary }: WeeklySummaryCardProps) {
         </div>
 
         {/* Subtotal */}
-        <div className="flex justify-between text-sm font-medium">
+        <div className={`flex justify-between ${rowTextClass} font-medium`}>
           <span className="text-zinc-300">
             {isOwnerOperator ? 'Subtotal (After Company Cut)' : 'Driver Pay Base'}
           </span>
@@ -117,15 +132,15 @@ export default function WeeklySummaryCard({ summary }: WeeklySummaryCardProps) {
         {/* Fixed Deductions Section */}
         {summary.fixedDeductions.length > 0 && (
           <>
-            <div className="border-t border-zinc-800 my-3" />
-            <div className="space-y-2">
+            <div className={dividerClass} />
+            <div className={listSpacingClass}>
               {summary.fixedDeductions.map((deduction, index) => (
-                <div key={index} className="flex justify-between text-sm">
+                <div key={index} className={`flex justify-between ${rowTextClass}`}>
                   <span className="text-zinc-400">{deduction.name}</span>
                   <span className="text-red-400">- {formatMoney(deduction.amount)}</span>
                 </div>
               ))}
-              <div className="flex justify-between text-sm font-medium pt-1">
+              <div className={`flex justify-between ${rowTextClass} font-medium pt-1`}>
                 <span className="text-zinc-300">Total Fixed Deductions</span>
                 <span className="text-red-400">- {formatMoney(summary.totalFixedDeductions)}</span>
               </div>
@@ -135,7 +150,7 @@ export default function WeeklySummaryCard({ summary }: WeeklySummaryCardProps) {
 
         {/* Tax */}
         {summary.taxPercent > 0 && (
-          <div className="flex justify-between text-sm">
+          <div className={`flex justify-between ${rowTextClass}`}>
             <span className="text-zinc-400">Tax ({summary.taxPercent}%)</span>
             <span className="text-red-400">- {formatMoney(summary.taxAmount)}</span>
           </div>
