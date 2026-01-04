@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Download, Loader2, RefreshCw } from 'lucide-react';
+import { Download, Loader2, Search } from 'lucide-react';
 
 interface DownloadReportButtonProps {
   companyId: number | null;
@@ -19,13 +19,13 @@ export default function DownloadReportButton({
   const [isLoading, setIsLoading] = useState(false);
   const [mode, setMode] = useState<'full' | 'changes'>('full');
   const [error, setError] = useState<string | null>(null);
+  const [vendor, setVendor] = useState('');
 
   const handleDownload = async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      // Build query params
       const params = new URLSearchParams();
       params.set('mode', mode);
 
@@ -41,10 +41,10 @@ export default function DownloadReportButton({
 
       if (dateFrom) params.set('dateFrom', dateFrom);
       if (dateTo) params.set('dateTo', dateTo);
+      if (vendor.trim()) params.set('vendor', vendor.trim());
 
       const response = await fetch(`/api/reports/export?${params.toString()}`);
 
-      // Check if it's a JSON response (error or no changes)
       const contentType = response.headers.get('Content-Type');
       if (contentType?.includes('application/json')) {
         const data = await response.json();
@@ -62,19 +62,15 @@ export default function DownloadReportButton({
         throw new Error('Export failed');
       }
 
-      // Get the blob
       const blob = await response.blob();
-
-      // Create download link
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
 
-      // Get filename from Content-Disposition header or use default
       const contentDisposition = response.headers.get('Content-Disposition');
-      let filename = 'settlement-report.xlsx';
+      let filename = `OP Exp Weyrah ${new Date().getFullYear()}.xlsx`;
       if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+        const filenameMatch = contentDisposition.match(/filename="([^"]+)"/);
         if (filenameMatch) {
           filename = filenameMatch[1];
         }
@@ -86,7 +82,6 @@ export default function DownloadReportButton({
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
-      // Check for warnings
       const warnings = response.headers.get('X-Export-Warnings');
       if (warnings) {
         console.warn('Export warnings:', warnings);
@@ -100,63 +95,67 @@ export default function DownloadReportButton({
   };
 
   return (
-    <div className="flex items-center gap-2">
-      {/* Mode Toggle */}
-      <div className="flex rounded-lg overflow-hidden border border-zinc-700">
+    <>
+      <div className="flex items-center gap-2 flex-none">
+        {/* 6. Vendor search input */}
+        <div className="relative flex-none">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+          <input
+            type="text"
+            value={vendor}
+            onChange={(e) => setVendor(e.target.value)}
+            placeholder="Search"
+            className="h-11 w-[130px] rounded-xl border border-zinc-700 bg-zinc-800 pl-9 pr-3 text-sm text-white placeholder-zinc-500"
+          />
+        </div>
+
+        {/* 7. Export mode toggle (icon-only) */}
+        <div className="flex rounded-xl overflow-hidden border border-zinc-700 flex-none">
+          <button
+            type="button"
+            onClick={() => setMode('full')}
+            title="Full Export"
+            className={`h-11 w-11 flex items-center justify-center text-lg transition-colors ${
+              mode === 'full'
+                ? 'bg-[#7a67e7] text-white'
+                : 'bg-zinc-800 text-zinc-400 hover:text-white'
+            }`}
+          >
+            🗂️
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('changes')}
+            title="Changes Only"
+            className={`h-11 w-11 flex items-center justify-center text-lg transition-colors border-l border-zinc-700 ${
+              mode === 'changes'
+                ? 'bg-[#7a67e7] text-white'
+                : 'bg-zinc-800 text-zinc-400 hover:text-white'
+            }`}
+          >
+            🔁
+          </button>
+        </div>
+
+        {/* 8. Download button (green) */}
         <button
           type="button"
-          onClick={() => setMode('full')}
-          className={`px-3 py-2 text-xs font-medium transition-colors ${
-            mode === 'full'
-              ? 'bg-emerald-600 text-white'
-              : 'bg-zinc-800 text-zinc-400 hover:text-white'
-          }`}
+          onClick={handleDownload}
+          disabled={isLoading}
+          className="h-11 flex-none inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Full Export
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode('changes')}
-          className={`px-3 py-2 text-xs font-medium transition-colors ${
-            mode === 'changes'
-              ? 'bg-amber-600 text-white'
-              : 'bg-zinc-800 text-zinc-400 hover:text-white'
-          }`}
-        >
-          Changes Only
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <>
+              <Download className="h-4 w-4" />
+              XLSX
+            </>
+          )}
         </button>
       </div>
 
-      {/* Download Button */}
-      <button
-        type="button"
-        onClick={handleDownload}
-        disabled={isLoading}
-        className={`inline-flex items-center gap-2 h-12 rounded-lg px-5 text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-          mode === 'changes'
-            ? 'bg-amber-600 hover:bg-amber-500'
-            : 'bg-emerald-600 hover:bg-emerald-500'
-        }`}
-      >
-        {isLoading ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Generating...
-          </>
-        ) : mode === 'changes' ? (
-          <>
-            <RefreshCw className="h-4 w-4" />
-            Download Delta
-          </>
-        ) : (
-          <>
-            <Download className="h-4 w-4" />
-            Download XLSX
-          </>
-        )}
-      </button>
-
-      {/* Error Display */}
+      {/* Error toast */}
       {error && (
         <div className="fixed bottom-4 right-4 max-w-md bg-red-900/90 border border-red-700 text-red-100 px-4 py-3 rounded-lg shadow-lg z-50">
           <p className="text-sm">{error}</p>
@@ -169,6 +168,6 @@ export default function DownloadReportButton({
           </button>
         </div>
       )}
-    </div>
+    </>
   );
 }

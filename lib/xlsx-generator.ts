@@ -42,6 +42,7 @@ interface DriverSheetData {
   driverId: number;
   driverName: string;
   truckNumber: string; // STRING - preserves leading zeros
+  sheetName?: string;
   companyName: string;
   weeks: WeekData[];
   ytdGross: number;
@@ -83,8 +84,10 @@ const COLORS = {
 
 // Each week block is exactly 18 rows (no gaps between weeks)
 const ROWS_PER_WEEK = 18;
+const MAX_EXPENSE_ROWS = 12;
 const MAX_WEEKS = 50;
 const MAX_LOADS_PER_WEEK = 6;
+const TEMPLATE_WEEK_1_START = new Date(2025, 11, 21);
 
 function setCellStyle(
   cell: ExcelJS.Cell,
@@ -198,16 +201,6 @@ function createWeekBlock(
     });
   });
 
-  // Add Week Start/End info in merged cells after headers (same row, columns L-M)
-  const weekInfoCell = worksheet.getCell(r, 12); // Column L
-  weekInfoCell.value = `Week: ${formatDateForCell(weekData.weekStart)} - ${formatDateForCell(weekData.weekEnd)}`;
-  setCellStyle(weekInfoCell, {
-    fontColor: COLORS.white,
-    bgColor: COLORS.black,
-    bold: true,
-    fontSize: 10,
-  });
-
   // ===== ROW 2: BROKER label + first expense =====
   const brokerCell = worksheet.getCell(r + 1, 1); // A2
   brokerCell.value = 'BROKER';
@@ -236,7 +229,6 @@ function createWeekBlock(
     'PAYBACK',
     'ELD',
     'CAMERA',
-    'DRIVER 31%',
     'ADVANCED',
   ];
 
@@ -251,12 +243,13 @@ function createWeekBlock(
     weekData.expenses.payback,
     weekData.expenses.eld,
     weekData.expenses.camera,
-    weekData.expenses.driverPercent,
     weekData.expenses.advanced,
   ];
 
-  expenseLabels.forEach((label, idx) => {
+  for (let idx = 0; idx < MAX_EXPENSE_ROWS; idx++) {
     const expenseRow = r + 1 + idx;
+    const label = expenseLabels[idx] ?? '';
+    const amount = expenseValues[idx] ?? 0;
 
     // Label cell (J column)
     const labelCell = worksheet.getCell(expenseRow, 10); // Column J
@@ -268,13 +261,13 @@ function createWeekBlock(
 
     // Amount cell (K column)
     const amountCell = worksheet.getCell(expenseRow, 11); // Column K
-    amountCell.value = expenseValues[idx] || 0;
+    amountCell.value = amount || 0;
     setCellStyle(amountCell, {
       bgColor: COLORS.lightBlue,
       bold: true,
       numFmt: '"$"#,##0.00',
     });
-  });
+  }
 
   // ===== ROWS 3-8: LOAD LABELS (A3-A8) and LOAD DATA (B3-H8, I3-I8) =====
   for (let i = 0; i < MAX_LOADS_PER_WEEK; i++) {
@@ -348,7 +341,7 @@ function createWeekBlock(
   });
 
   // ===== ROW 14: TOTAL OWE =====
-  const totalOweRow = r + 13;
+  const totalOweRow = r + 1 + MAX_EXPENSE_ROWS;
   const totalOweLabelCell = worksheet.getCell(totalOweRow, 10); // J14
   totalOweLabelCell.value = 'TOTAL OWE';
   setCellStyle(totalOweLabelCell, {
@@ -358,7 +351,7 @@ function createWeekBlock(
   });
 
   const totalOweAmountCell = worksheet.getCell(totalOweRow, 11); // K14
-  totalOweAmountCell.value = { formula: `SUM(K${r + 1}:K${r + 12})` };
+  totalOweAmountCell.value = { formula: `SUM(K${r + 1}:K${r + MAX_EXPENSE_ROWS})` };
   setCellStyle(totalOweAmountCell, {
     bgColor: COLORS.red,
     fontColor: COLORS.white,
@@ -367,7 +360,7 @@ function createWeekBlock(
   });
 
   // ===== ROW 15: WEEKLY GROSS =====
-  const weeklyGrossRow = r + 14;
+  const weeklyGrossRow = totalOweRow + 1;
   const weeklyGrossLabelCell = worksheet.getCell(weeklyGrossRow, 10); // J15
   weeklyGrossLabelCell.value = 'WEEKLY GROSS';
   setCellStyle(weeklyGrossLabelCell, {
@@ -386,7 +379,7 @@ function createWeekBlock(
   });
 
   // ===== ROW 16: WEEKLY NET PAY =====
-  const weeklyNetRow = r + 15;
+  const weeklyNetRow = weeklyGrossRow + 1;
   const weeklyNetLabelCell = worksheet.getCell(weeklyNetRow, 10); // J16
   weeklyNetLabelCell.value = 'WEEKLY NET PAY';
   setCellStyle(weeklyNetLabelCell, {
@@ -405,7 +398,7 @@ function createWeekBlock(
   });
 
   // ===== ROW 17: YTD GROSS =====
-  const ytdGrossRow = r + 16;
+  const ytdGrossRow = weeklyNetRow + 1;
   const ytdGrossLabelCell = worksheet.getCell(ytdGrossRow, 10); // J17
   ytdGrossLabelCell.value = 'YTD GROSS';
   setCellStyle(ytdGrossLabelCell, {
@@ -424,7 +417,7 @@ function createWeekBlock(
   });
 
   // ===== ROW 18: YTD NET PAY =====
-  const ytdNetRow = r + 17;
+  const ytdNetRow = ytdGrossRow + 1;
   const ytdNetLabelCell = worksheet.getCell(ytdNetRow, 10); // J18
   ytdNetLabelCell.value = 'YTD NET PAY';
   setCellStyle(ytdNetLabelCell, {
@@ -456,8 +449,8 @@ function createSampleSheet(workbook: ExcelJS.Workbook) {
   for (let weekNum = 1; weekNum <= 3; weekNum++) {
     const sampleWeek: WeekData = {
       weekNumber: weekNum,
-      weekStart: new Date(2026, 0, 1 + (weekNum - 1) * 7),
-      weekEnd: new Date(2026, 0, 7 + (weekNum - 1) * 7),
+      weekStart: getWeekStartDate(weekNum),
+      weekEnd: getWeekEndDate(weekNum),
       loads: [],
       expenses: {
         factoring: 0,
@@ -488,7 +481,8 @@ function createDriverSheet(
   driverData: DriverSheetData
 ) {
   // Sheet name is the truck number (max 31 chars for Excel)
-  const sheetName = driverData.truckNumber.substring(0, 31);
+  const sheetBaseName = driverData.sheetName || driverData.truckNumber;
+  const sheetName = sheetBaseName.substring(0, 31);
   const worksheet = workbook.addWorksheet(sheetName);
   setColumnWidths(worksheet);
 
@@ -501,8 +495,8 @@ function createDriverSheet(
     // Find matching week data or create empty template
     const weekData = driverData.weeks.find((w) => w.weekNumber === weekNum) || {
       weekNumber: weekNum,
-      weekStart: getWeekStartDate(2026, weekNum),
-      weekEnd: getWeekEndDate(2026, weekNum),
+      weekStart: getWeekStartDate(weekNum),
+      weekEnd: getWeekEndDate(weekNum),
       loads: [],
       expenses: {
         factoring: 0,
@@ -546,17 +540,16 @@ function createDriverSheet(
 /**
  * Get the start date of a week number in a given year
  */
-function getWeekStartDate(year: number, weekNumber: number): Date {
-  const jan1 = new Date(year, 0, 1);
+function getWeekStartDate(weekNumber: number): Date {
   const daysToAdd = (weekNumber - 1) * 7;
-  return new Date(jan1.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
+  return new Date(TEMPLATE_WEEK_1_START.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
 }
 
 /**
  * Get the end date of a week number in a given year
  */
-function getWeekEndDate(year: number, weekNumber: number): Date {
-  const startDate = getWeekStartDate(year, weekNumber);
+function getWeekEndDate(weekNumber: number): Date {
+  const startDate = getWeekStartDate(weekNumber);
   return new Date(startDate.getTime() + 6 * 24 * 60 * 60 * 1000);
 }
 

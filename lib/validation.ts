@@ -20,16 +20,19 @@ const locationSchema = z.string().min(1, 'Location is required').refine(
 
 export const loadSchema = z.object({
   load_ref: z.string().optional().nullable(),
+  vendor: z.string().optional().nullable(),
   from_location: locationSchema,
   to_location: locationSchema,
   load_date: z.string().min(1, 'Load date is required'),
+  delivery_date: z.string().optional().nullable(),
   amount: z.number().finite().min(0, 'Amount must be at least 0')
 });
 
 export const deductionSchema = z.object({
   deduction_type: z.string().min(1, 'Deduction type is required'),
   amount: z.number().finite().min(0, 'Amount must be at least 0'),
-  note: z.string().optional().nullable()
+  note: z.string().optional().nullable(),
+  deduction_date: z.string().optional().nullable()
 });
 
 export const invoiceInputSchema = z.object({
@@ -67,6 +70,9 @@ export const companyUpdateSchema = z.object({
   default_percent: z.number().finite().min(0).max(100),
   default_tax_percent: z.number().finite().min(0).max(100),
   default_currency: z.string().min(3).max(3).default('USD'),
+  factoring_rate: z.number().finite().min(0).max(100).default(2),
+  dispatch_rate: z.number().finite().min(0).max(100).default(6),
+  auto_deduction_base: z.enum(['YTD_INSURANCE']).default('YTD_INSURANCE'),
   invoice_prefix: z.string().min(1),
   footer_note: z.string().optional().nullable()
 });
@@ -80,12 +86,18 @@ export const driverContactSchema = z.object({
 export const driverCreateSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   company_id: z.number().int(),
+  truck_number: z.string().min(1).max(31).optional().nullable(),
   email: z.string().email().optional().nullable(),
   whatsapp_number: z.string().optional().nullable()
 });
 
 export const driverCompanySchema = z.object({
   company_id: z.number().int().nullable()
+});
+
+export const driverUpdateSchema = z.object({
+  company_id: z.number().int().nullable().optional(),
+  truck_number: z.string().min(1).max(31).optional().nullable()
 });
 
 export function formatZodErrors(error: z.ZodError) {

@@ -41,9 +41,11 @@ interface Driver {
 
 interface LoadItem {
   load_ref?: string;
+  vendor?: string | null;
   from_location: string;
   to_location: string;
   load_date: string;
+  delivery_date?: string | null;
   amount: number | string;
 }
 
@@ -51,6 +53,7 @@ interface DeductionItem {
   deduction_type: string;
   amount: number | string;
   note?: string;
+  deduction_date?: string;
 }
 
 interface InvoiceFormData {
@@ -85,15 +88,18 @@ interface Invoice {
   driver: Driver;
   loads: Array<{
     load_ref?: string | null;
+    vendor?: string | null;
     from_location: string;
     to_location: string;
     load_date: Date | string;
+    delivery_date?: Date | string | null;
     amount: number;
   }>;
   deductions: Array<{
     deduction_type: string;
     amount: number;
     note?: string | null;
+    deduction_date?: Date | string | null;
   }>;
 }
 
@@ -138,15 +144,18 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
         invoice_number: initialData.invoice_number,
         loads: initialData.loads.map((l) => ({
             load_ref: l.load_ref || '',
+            vendor: l.vendor || '',
             from_location: l.from_location,
             to_location: l.to_location,
             load_date: formatDate(l.load_date),
+            delivery_date: formatDate(l.delivery_date || ''),
             amount: l.amount
         })),
         deductions: initialData.deductions.map((d) => ({
             deduction_type: d.deduction_type,
             amount: d.amount,
-            note: d.note || ''
+            note: d.note || '',
+            deduction_date: formatDate(d.deduction_date || '')
         }))
     } : {
       company_id: '',
@@ -159,7 +168,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
       status: 'draft',
       due_date: '',
       notes: '',
-      loads: [{ load_ref: '', from_location: '', to_location: '', load_date: '', amount: 0 }],
+      loads: [{ load_ref: '', vendor: '', from_location: '', to_location: '', load_date: '', delivery_date: '', amount: 0 }],
       deductions: []
     }
   });
@@ -199,11 +208,18 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
       console.error('Error fetching deduction types:', error);
       // Fallback to hardcoded defaults if API fails
       const fallback = [
-        { id: 0, name: 'Fuel', company_id: null, is_default: true },
-        { id: 1, name: 'Toll', company_id: null, is_default: true },
-        { id: 2, name: 'ELD', company_id: null, is_default: true },
-        { id: 3, name: 'Insurance', company_id: null, is_default: true },
-        { id: 4, name: 'Other', company_id: null, is_default: true },
+        { id: 0, name: 'Factoring', company_id: null, is_default: true },
+        { id: 1, name: 'Dispatch', company_id: null, is_default: true },
+        { id: 2, name: 'Fuel', company_id: null, is_default: true },
+        { id: 3, name: 'Maintenance', company_id: null, is_default: true },
+        { id: 4, name: 'Tolls/Violations', company_id: null, is_default: true },
+        { id: 5, name: 'Insurance', company_id: null, is_default: true },
+        { id: 6, name: 'Trailer', company_id: null, is_default: true },
+        { id: 7, name: 'Payback', company_id: null, is_default: true },
+        { id: 8, name: 'ELD', company_id: null, is_default: true },
+        { id: 9, name: 'Camera', company_id: null, is_default: true },
+        { id: 10, name: 'Advanced', company_id: null, is_default: true },
+        { id: 11, name: 'Other', company_id: null, is_default: true },
       ];
       setDeductionTypes(fallback);
       return fallback;
@@ -273,7 +289,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
         setNewTypeName('');
         setShowNewTypeInput(false);
         // Append a new deduction with this type
-        appendDeduction({ deduction_type: newType.name, amount: 0, note: '' });
+        appendDeduction({ deduction_type: newType.name, amount: 0, note: '', deduction_date: '' });
         setTypeMessage('Deduction type added.');
       } else if (res.status === 409) {
         setTypeError('This deduction type already exists.');
@@ -347,9 +363,11 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
       // Normalize locations to ensure "City, ST" format
       const transformedLoads = data.loads.map((l: LoadItem) => ({
         load_ref: l.load_ref,
+        vendor: l.vendor || null,
         from_location: normalizeLocation(l.from_location),
         to_location: normalizeLocation(l.to_location),
         load_date: l.load_date,
+        delivery_date: l.delivery_date || null,
         amount: parseFloat(l.amount.toString())
       }));
 
@@ -361,7 +379,12 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
         tax_percent: parseFloat(data.tax_percent.toString()),
         currency: 'USD',
         loads: transformedLoads,
-        deductions: data.deductions.map((d: DeductionItem) => ({ ...d, amount: parseFloat(d.amount.toString()) }))
+        deductions: data.deductions.map((d: DeductionItem) => ({
+          deduction_type: d.deduction_type,
+          amount: parseFloat(d.amount.toString()),
+          note: d.note || null,
+          deduction_date: d.deduction_date || null
+        }))
       };
 
       const url = initialData ? `/api/invoices/${initialData.id}` : '/api/invoices';
@@ -642,7 +665,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
       <div className="border-t border-zinc-800 pt-6">
         <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-medium leading-6 text-white">Loads</h3>
-            <button type="button" onClick={() => appendLoad({ load_ref: '', from_location: '', to_location: '', load_date: '', amount: 0 })} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-[#7a67e7] bg-[#7a67e7]/10 hover:bg-[#7a67e7]/20 transition-colors">
+            <button type="button" onClick={() => appendLoad({ load_ref: '', vendor: '', from_location: '', to_location: '', load_date: '', delivery_date: '', amount: 0 })} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-[#7a67e7] bg-[#7a67e7]/10 hover:bg-[#7a67e7]/20 transition-colors">
                 <Plus className="w-4 h-4 mr-1" /> Add Load
             </button>
         </div>
@@ -651,6 +674,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                 <thead className="bg-zinc-800/50">
                     <tr>
                         <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">Date PU *</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">Date DEL</th>
                         <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">Load</th>
                         <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">From (ST)</th>
                         <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">To (ST)</th>
@@ -662,6 +686,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                     {loadFields.map((field, index) => (
                         <tr key={field.id} className="hover:bg-zinc-800/30">
                             <td className="px-2 py-2">
+                                <input type="hidden" {...register(`loads.${index}.vendor` as const)} />
                                 <input
                                     type="date"
                                     {...register(`loads.${index}.load_date` as const, { required: 'Date PU is required' })}
@@ -670,6 +695,13 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                                 {errors.loads?.[index]?.load_date?.message ? (
                                     <p className="mt-1 text-xs text-red-400">{errors.loads[index]?.load_date?.message}</p>
                                 ) : null}
+                            </td>
+                            <td className="px-2 py-2">
+                                <input
+                                    type="date"
+                                    {...register(`loads.${index}.delivery_date` as const)}
+                                    className="block w-full border-zinc-700 bg-zinc-800 text-white rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a67e7] border p-2 sm:text-sm"
+                                />
                             </td>
                             <td className="px-2 py-2"><input type="text" {...register(`loads.${index}.load_ref` as const)} className="block w-full border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a67e7] border p-2 sm:text-sm" placeholder="Load #" /></td>
                             <td className="px-2 py-2">
@@ -736,7 +768,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
             <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-medium leading-6 text-white">Fixed Deductions</h3>
                 <div className="flex gap-2">
-                    <button type="button" onClick={() => appendDeduction({ deduction_type: deductionTypes[0]?.name || 'Other', amount: 0, note: '' })} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-[#7a67e7] bg-[#7a67e7]/10 hover:bg-[#7a67e7]/20 transition-colors">
+                    <button type="button" onClick={() => appendDeduction({ deduction_type: deductionTypes[0]?.name || 'Other', amount: 0, note: '', deduction_date: '' })} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-[#7a67e7] bg-[#7a67e7]/10 hover:bg-[#7a67e7]/20 transition-colors">
                         <Plus className="w-4 h-4 mr-1" /> Add
                     </button>
                     <button type="button" onClick={() => setShowNewTypeInput(true)} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-[#7a67e7] bg-[#7a67e7]/10 hover:bg-[#7a67e7]/20 transition-colors">
@@ -828,9 +860,13 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
             ) : null}
 
             <div className="space-y-2">
-                {deductionFields.map((field, index) => (
+                {deductionFields.map((field, index) => {
+                    const selectedType = watchedDeductions[index]?.deduction_type || '';
+                    const isDateDel = selectedType.toLowerCase() === 'date del';
+                    return (
                     <div key={field.id} className="flex gap-2 items-start">
-                        <select {...register(`deductions.${index}.deduction_type` as const)} className="block w-1/3 border-zinc-700 bg-zinc-800 text-white rounded-lg shadow-sm border p-2.5 sm:text-sm">
+                        <select {...register(`deductions.${index}.deduction_type` as const)} className="block w-[140px] flex-none border-zinc-700 bg-zinc-800 text-white rounded-lg shadow-sm border p-2.5 sm:text-sm">
+                            <option value="Date del">Date del</option>
                             {deductionTypes.length > 0 ? (
                               deductionTypes.map(dt => (
                                 <option key={dt.id} value={dt.name}>{dt.name}</option>
@@ -845,18 +881,27 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                               </>
                             )}
                         </select>
-                        <input type="number" step="0.01" {...register(`deductions.${index}.amount` as const)} placeholder="Amount" className="block w-1/4 border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm border p-2.5 sm:text-sm" />
-                        <input type="text" {...register(`deductions.${index}.note` as const)} placeholder="Note" className="block w-1/3 border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm border p-2.5 sm:text-sm" />
+                        {isDateDel ? (
+                          <input
+                            type="date"
+                            {...register(`deductions.${index}.deduction_date` as const)}
+                            className="block w-[140px] flex-none border-zinc-700 bg-zinc-800 text-white rounded-lg shadow-sm border p-2.5 sm:text-sm"
+                          />
+                        ) : (
+                          <input type="number" step="0.01" {...register(`deductions.${index}.amount` as const)} placeholder="Amount" className="block w-[100px] flex-none border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm border p-2.5 sm:text-sm" />
+                        )}
+                        <input type="text" {...register(`deductions.${index}.note` as const)} placeholder="Note" className="block flex-1 min-w-[80px] border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm border p-2.5 sm:text-sm" />
                         <button
                           type="button"
                           onClick={() => removeDeduction(index)}
-                          className="mt-2.5 inline-flex items-center justify-center rounded-md bg-[#301b1f] p-2 text-red-300 hover:bg-[#3a2428] transition-colors"
+                          className="mt-0.5 inline-flex items-center justify-center rounded-md bg-[#301b1f] p-2 text-red-300 hover:bg-[#3a2428] transition-colors"
                           title="Remove deduction"
                         >
                           <Trash className="w-4 h-4" />
                         </button>
                     </div>
-                ))}
+                    );
+                })}
             </div>
           </div>
 

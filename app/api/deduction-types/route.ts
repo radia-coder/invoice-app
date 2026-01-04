@@ -2,6 +2,42 @@ import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import { requireApiAuth } from '@/lib/api-auth'
 
+const DEFAULT_DEDUCTION_TYPES = [
+  'Factoring',
+  'Dispatch',
+  'Fuel',
+  'Maintenance',
+  'Tolls/Violations',
+  'Insurance',
+  'Trailer',
+  'Payback',
+  'ELD',
+  'Camera',
+  'Advanced',
+  'Other'
+]
+
+async function ensureDefaultDeductionTypes() {
+  const existing = await prisma.deductionType.findMany({
+    where: { is_default: true, company_id: null },
+    select: { name: true }
+  })
+  const existingNames = new Set(existing.map((type) => type.name.toLowerCase()))
+  const missing = DEFAULT_DEDUCTION_TYPES.filter(
+    (name) => !existingNames.has(name.toLowerCase())
+  )
+
+  if (!missing.length) return
+
+  await prisma.deductionType.createMany({
+    data: missing.map((name) => ({
+      name,
+      company_id: null,
+      is_default: true
+    }))
+  })
+}
+
 // GET /api/deduction-types?companyId=...
 // Returns default types + company-specific types
 export async function GET(request: Request) {
@@ -17,6 +53,8 @@ export async function GET(request: Request) {
   }
 
   try {
+    await ensureDefaultDeductionTypes()
+
     // Get default types (company_id is null and is_default is true)
     // Plus company-specific types if companyId is provided
     const companyFilter = parsedCompanyId

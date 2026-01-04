@@ -45,29 +45,126 @@ const DRIVER_TRUCK_MAP: Record<string, string> = {
 
 // Normalize driver name for lookup
 function normalizeDriverName(name: string): string {
-  return name.toLowerCase().trim();
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+type TruckMatchType = 'exact' | 'partial' | 'fuzzy' | 'db' | 'none';
+
+type TruckMatchResult = {
+  truckNumber: string | null;
+  matchType: TruckMatchType;
+  matchedName?: string;
+};
+
+const NORMALIZED_TRUCK_MAP = new Map<string, string>();
+const NORMALIZED_NAME_MAP = new Map<string, string>();
+
+for (const [name, truckNumber] of Object.entries(DRIVER_TRUCK_MAP)) {
+  const normalized = normalizeDriverName(name);
+  NORMALIZED_TRUCK_MAP.set(normalized, truckNumber);
+  NORMALIZED_NAME_MAP.set(normalized, name);
+}
+
+function levenshteinDistance(a: string, b: string): number {
+  const dp: number[][] = Array.from({ length: a.length + 1 }, () =>
+    Array(b.length + 1).fill(0)
+  );
+
+  for (let i = 0; i <= a.length; i++) dp[i][0] = i;
+  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
+
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost
+      );
+    }
+  }
+
+  return dp[a.length][b.length];
+}
+
+function findTruckNumber(driverName: string): TruckMatchResult {
+  const normalized = normalizeDriverName(driverName);
+  if (!normalized) {
+    return { truckNumber: null, matchType: 'none' };
+  }
+  const direct = NORMALIZED_TRUCK_MAP.get(normalized);
+  if (direct) {
+    return { truckNumber: direct, matchType: 'exact', matchedName: NORMALIZED_NAME_MAP.get(normalized) };
+  }
+
+  const partialCandidates: string[] = [];
+  for (const [normalizedName] of NORMALIZED_TRUCK_MAP.entries()) {
+    if (
+      normalizedName.includes(normalized) ||
+      normalized.includes(normalizedName)
+    ) {
+      partialCandidates.push(normalizedName);
+    }
+  }
+
+  if (partialCandidates.length === 1) {
+    const candidate = partialCandidates[0];
+    return {
+      truckNumber: NORMALIZED_TRUCK_MAP.get(candidate) || null,
+      matchType: 'partial',
+      matchedName: NORMALIZED_NAME_MAP.get(candidate),
+    };
+  }
+
+  let bestCandidate: string | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  let bestCount = 0;
+  const maxDistance = normalized.length <= 10 ? 2 : 3;
+
+  for (const [normalizedName] of NORMALIZED_TRUCK_MAP.entries()) {
+    const distance = levenshteinDistance(normalized, normalizedName);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestCandidate = normalizedName;
+      bestCount = 1;
+    } else if (distance === bestDistance) {
+      bestCount += 1;
+    }
+  }
+
+  if (bestCandidate && bestDistance <= maxDistance && bestCount === 1) {
+    return {
+      truckNumber: NORMALIZED_TRUCK_MAP.get(bestCandidate) || null,
+      matchType: 'fuzzy',
+      matchedName: NORMALIZED_NAME_MAP.get(bestCandidate),
+    };
+  }
+
+  return { truckNumber: null, matchType: 'none' };
 }
 
 /**
  * Get truck number for a driver by name
- * Returns the truck number from the mapping, or generates a fallback
+ * Returns the truck number from the mapping or database, otherwise null
  */
-export function getTruckNumber(driverName: string, driverId: number, dbTruckNumber?: string | null): string {
-  // First, check the hardcoded mapping
-  const normalized = normalizeDriverName(driverName);
-  const mappedTruck = DRIVER_TRUCK_MAP[normalized];
-
-  if (mappedTruck) {
-    return mappedTruck;
-  }
-
-  // If not in mapping, use database value if available
+export function getTruckNumber(
+  driverName: string,
+  _driverId: number,
+  dbTruckNumber?: string | null
+): string | null {
   if (dbTruckNumber && dbTruckNumber.trim()) {
     return dbTruckNumber.trim();
   }
+  const matched = findTruckNumber(driverName);
+  if (matched.truckNumber) {
+    return matched.truckNumber;
+  }
 
-  // Fallback: generate from driver ID (but flag as unmapped)
-  return `TRK ${driverId.toString().padStart(3, '0')}`;
+  return null;
 }
 
 /**
@@ -77,7 +174,16 @@ export interface TruckValidationResult {
   isValid: boolean;
   errors: string[];
   warnings: string[];
-  driverTruckMap: Map<number, { name: string; truckNumber: string; isMapped: boolean }>;
+  driverTruckMap: Map<
+    number,
+    {
+      name: string;
+      truckNumber: string | null;
+      isMapped: boolean;
+      matchType: TruckMatchType;
+      matchedName?: string;
+    }
+  >;
 }
 
 /**
@@ -88,7 +194,16 @@ export function validateTruckNumbers(
 ): TruckValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
-  const driverTruckMap = new Map<number, { name: string; truckNumber: string; isMapped: boolean }>();
+  const driverTruckMap = new Map<
+    number,
+    {
+      name: string;
+      truckNumber: string | null;
+      isMapped: boolean;
+      matchType: TruckMatchType;
+      matchedName?: string;
+    }
+  >();
 
   // Track truck numbers to detect duplicates
   const truckToDrivers = new Map<string, Array<{ id: number; name: string }>>();
@@ -97,18 +212,28 @@ export function validateTruckNumbers(
   const unmappedDrivers: string[] = [];
 
   for (const driver of drivers) {
-    const normalized = normalizeDriverName(driver.name);
-    const mappedTruck = DRIVER_TRUCK_MAP[normalized];
-    const isMapped = !!mappedTruck;
-
-    const truckNumber = getTruckNumber(driver.name, driver.id, driver.truck_number);
+    let matchResult: TruckMatchResult;
+    if (driver.truck_number && driver.truck_number.trim()) {
+      matchResult = { truckNumber: driver.truck_number.trim(), matchType: 'db' };
+    } else {
+      matchResult = findTruckNumber(driver.name);
+    }
+    const isMapped = matchResult.matchType !== 'none';
+    const truckNumber = matchResult.truckNumber ?? null;
 
     // Store in result map
     driverTruckMap.set(driver.id, {
       name: driver.name,
       truckNumber,
       isMapped,
+      matchType: matchResult.matchType,
+      matchedName: matchResult.matchedName,
     });
+
+    if (!truckNumber) {
+      unmappedDrivers.push(`${driver.name} (ID: ${driver.id})`);
+      continue;
+    }
 
     // Track for duplicate detection
     const existing = truckToDrivers.get(truckNumber) || [];
@@ -117,30 +242,30 @@ export function validateTruckNumbers(
 
     // Track unmapped
     if (!isMapped) {
-      unmappedDrivers.push(`${driver.name} (ID: ${driver.id}) → ${truckNumber}`);
+      warnings.push(
+        `Non-exact name match: ${driver.name} -> ${matchResult.matchedName || 'unknown'} (${matchResult.matchType})`
+      );
+    } else if (matchResult.matchType === 'partial' || matchResult.matchType === 'fuzzy') {
+      warnings.push(
+        `Name match used: ${driver.name} -> ${matchResult.matchedName || 'unknown'} (${matchResult.matchType})`
+      );
     }
   }
 
   // Check for problematic duplicates
-  // Note: Some duplicates are intentional (TRK 9215 for Abukar and Nur Mohamed)
-  const knownDuplicates = new Set(['TRK 9215']);
-
   for (const [truckNum, driverList] of truckToDrivers.entries()) {
     if (driverList.length > 1) {
       const driverNames = driverList.map(d => `${d.name} (ID: ${d.id})`).join(', ');
 
-      if (knownDuplicates.has(truckNum)) {
-        warnings.push(`Known duplicate ${truckNum} shared by: ${driverNames}`);
-      } else {
-        // Unknown duplicate - this is an error
-        errors.push(`Unexpected duplicate truck number ${truckNum} for drivers: ${driverNames}`);
-      }
+      warnings.push(`Duplicate truck number ${truckNum} shared by: ${driverNames}`);
     }
   }
 
   // Warn about unmapped drivers
   if (unmappedDrivers.length > 0) {
-    warnings.push(`${unmappedDrivers.length} driver(s) not in official mapping: ${unmappedDrivers.join('; ')}`);
+    warnings.push(
+      `${unmappedDrivers.length} driver(s) missing a truck number and will be skipped: ${unmappedDrivers.join('; ')}`
+    );
   }
 
   return {

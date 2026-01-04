@@ -3,23 +3,54 @@ import { NextResponse } from 'next/server';
 import { requireApiAuth } from '@/lib/api-auth';
 import { buildInvoicePdfFilename, getInvoicePdfBuffer } from '@/lib/invoice-pdf';
 import { type InvoiceData } from '@/components/InvoiceTemplate';
+import {
+  buildAutoDeductionEntries,
+  calculateAutoDeductions,
+  getAutoDeductionConfigFromCompany,
+  mergeDeductionsWithAuto,
+  sumInsuranceDeductions
+} from '@/lib/auto-deductions';
 import nodemailer from 'nodemailer';
 
 export const runtime = 'nodejs';
 
 const getPdfBuffer = async (invoice: any) => {
+  const yearStart = new Date(invoice.week_end.getFullYear(), 0, 1);
+  const ytdInvoices = await prisma.invoice.findMany({
+    where: {
+      driver_id: invoice.driver_id,
+      week_end: {
+        gte: yearStart,
+        lte: invoice.week_end
+      }
+    },
+    select: { updated_at: true, deductions: true }
+  });
+  const ytdInsurance = ytdInvoices.reduce(
+    (sum, ytdInvoice) => sum + sumInsuranceDeductions(ytdInvoice.deductions),
+    0
+  );
+  const latestUpdatedAt = ytdInvoices.reduce((latest, ytdInvoice) => {
+    return ytdInvoice.updated_at > latest ? ytdInvoice.updated_at : latest;
+  }, invoice.updated_at);
+
+  const autoConfig = getAutoDeductionConfigFromCompany(invoice.company);
+  const autoAmounts = calculateAutoDeductions(ytdInsurance, autoConfig);
+  const autoEntries = buildAutoDeductionEntries(autoAmounts, autoConfig);
+  const mergedDeductions = mergeDeductionsWithAuto(invoice.deductions, autoEntries);
+
   const invoiceData: InvoiceData = {
     ...invoice,
     company: invoice.company,
     driver: invoice.driver,
     loads: invoice.loads,
-    deductions: invoice.deductions
+    deductions: mergedDeductions
   };
 
   return getInvoicePdfBuffer({
     ...invoiceData,
     id: invoice.id,
-    updated_at: invoice.updated_at
+    updated_at: latestUpdatedAt
   });
 };
 

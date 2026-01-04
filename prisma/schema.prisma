@@ -22,6 +22,9 @@ model Company {
   default_percent Float     @default(12.0)
   default_tax_percent Float @default(0.0)
   default_currency String   @default("USD")
+  factoring_rate  Float     @default(2.0)
+  dispatch_rate   Float     @default(6.0)
+  auto_deduction_base String @default("YTD_INSURANCE")
   invoice_prefix  String    @default("INV-")
   footer_note     String?
   created_at      DateTime  @default(now())
@@ -86,20 +89,23 @@ model InvoiceLoad {
   id            Int      @id @default(autoincrement())
   invoice_id    Int
   load_ref      String?
+  vendor        String?
   from_location String
   to_location   String
   load_date     DateTime
+  delivery_date DateTime?
   amount        Float
 
   invoice       Invoice  @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
 }
 
 model InvoiceDeduction {
-  id             Int     @id @default(autoincrement())
+  id             Int       @id @default(autoincrement())
   invoice_id     Int
-  deduction_type String  // "Fuel", "Toll", "ELD", "Insurance", "Other", or custom types
+  deduction_type String    // "Fuel", "Toll", "ELD", "Insurance", "Date del", "Other", or custom types
   amount         Float
   note           String?
+  deduction_date DateTime? // Used for "Date del" type to store delivery date
 
   invoice        Invoice @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
 }

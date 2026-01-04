@@ -74,7 +74,8 @@ export default async function CompanyPage({
       </div>
       <CompanyForm company={{
         ...company,
-        invoice_template: company.invoice_template as 'classic' | 'modern'
+        invoice_template: company.invoice_template as 'classic' | 'modern',
+        auto_deduction_base: (company.auto_deduction_base || 'YTD_INSURANCE') as 'YTD_INSURANCE'
       }} />
       <CompanyDriversManager
         companies={companies.length ? companies : [company]}
@@ -82,6 +83,7 @@ export default async function CompanyPage({
         assignedDrivers={assignedDrivers.map((driver) => ({
           id: driver.id,
           name: driver.name,
+          truck_number: driver.truck_number,
           email: driver.email,
           whatsapp_number: driver.whatsapp_number
         }))}

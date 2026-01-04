@@ -162,56 +162,64 @@ export default async function ReportsPage({
         </div>
       </div>
 
-      <form className="bg-zinc-900 border border-zinc-800 rounded-xl p-4" method="GET">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="relative w-full lg:w-[260px]">
-            <select 
-              name="companyId" 
-              defaultValue={companyId || ''} 
-              className="h-12 w-full appearance-none rounded-lg border-zinc-700 bg-zinc-800 text-white shadow-sm border px-3 pr-12"
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 overflow-x-auto">
+        <div className="flex items-center gap-2 min-w-max pl-6">
+          <form className="contents" method="GET">
+            {/* 1. Company dropdown */}
+            <div className="relative flex-none">
+              <select
+                name="companyId"
+                defaultValue={companyId || ''}
+                className="h-11 w-[150px] appearance-none rounded-xl border border-zinc-700 bg-zinc-800 text-white text-sm pl-3 pr-9"
+              >
+                <option value="">All Companies</option>
+                {companies.map((company) => (
+                  <option key={company.id} value={company.id}>{company.name}</option>
+                ))}
+              </select>
+              <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
+              </svg>
+            </div>
+            {/* 2. Driver dropdown */}
+            <div className="relative flex-none">
+              <select
+                name="driverId"
+                defaultValue={driverId || ''}
+                className="h-11 w-[140px] appearance-none rounded-xl border border-zinc-700 bg-zinc-800 text-white text-sm pl-3 pr-9"
+              >
+                <option value="">All Drivers</option>
+                {drivers.map((driver) => (
+                  <option key={driver.id} value={driver.id}>{driver.name}</option>
+                ))}
+              </select>
+              <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
+              </svg>
+            </div>
+            {/* 3. Start date */}
+            <input
+              type="date"
+              name="dateFrom"
+              defaultValue={params.dateFrom || ''}
+              className="h-11 w-[145px] flex-none rounded-xl border border-zinc-700 bg-zinc-800 text-white text-sm px-3"
+            />
+            {/* 4. End date */}
+            <input
+              type="date"
+              name="dateTo"
+              defaultValue={params.dateTo || ''}
+              className="h-11 w-[145px] flex-none rounded-xl border border-zinc-700 bg-zinc-800 text-white text-sm px-3"
+            />
+            {/* 5. Apply button */}
+            <button
+              type="submit"
+              className="h-11 flex-none rounded-xl bg-[#7a67e7] px-5 text-sm font-medium text-white hover:bg-[#6b59d6] transition-colors"
             >
-              <option value="">All Companies</option>
-              {companies.map((company) => (
-                <option key={company.id} value={company.id}>{company.name}</option>
-              ))}
-            </select>
-            <svg className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
-            </svg>
-          </div>
-          <div className="relative w-full lg:w-[260px]">
-            <select 
-              name="driverId" 
-              defaultValue={driverId || ''} 
-              className="h-12 w-full appearance-none rounded-lg border-zinc-700 bg-zinc-800 text-white shadow-sm border px-3 pr-12"
-            >
-              <option value="">All Drivers</option>
-              {drivers.map((driver) => (
-                <option key={driver.id} value={driver.id}>{driver.name}</option>
-              ))}
-            </select>
-            <svg className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
-            </svg>
-          </div>
-          <input
-            type="date"
-            name="dateFrom"
-            defaultValue={params.dateFrom || ''}
-            className="h-12 w-full lg:w-[200px] rounded-lg border-zinc-700 bg-zinc-800 text-white shadow-sm border px-3"
-          />
-          <input
-            type="date"
-            name="dateTo"
-            defaultValue={params.dateTo || ''}
-            className="h-12 w-full lg:w-[200px] rounded-lg border-zinc-700 bg-zinc-800 text-white shadow-sm border px-3"
-          />
-          <button
-            type="submit"
-            className="h-12 w-full lg:w-auto rounded-lg bg-[#7a67e7] px-5 text-sm font-medium text-white hover:bg-[#6b59d6] transition-colors"
-          >
-            Apply Filters
-          </button>
+              Apply
+            </button>
+          </form>
+          {/* 6-8. Vendor search + Mode toggle + Download button */}
           <DownloadReportButton
             companyId={companyId}
             driverId={driverId}
@@ -219,7 +227,7 @@ export default async function ReportsPage({
             dateTo={params.dateTo || null}
           />
         </div>
-      </form>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">

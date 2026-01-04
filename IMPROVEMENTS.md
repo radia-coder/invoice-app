@@ -168,8 +168,58 @@ ALTER TABLE DeductionType ADD COLUMN formula_percent REAL;
 
 ---
 
+## 9. Vendor/Broker Autofill Feature
+
+### Overview
+The vendor search in Reports export should support autofill with a predefined list of brokers. When the user starts typing, suggestions should appear from both:
+1. Known brokers (hardcoded list)
+2. Previously used vendors from invoice data
+
+### Implementation Plan
+
+#### Phase 1: Add Known Brokers List
+Create a centralized broker list in `lib/brokers.ts`:
+```typescript
+export const KNOWN_BROKERS = [
+  // To be populated with broker names provided by user
+  // Example:
+  // 'CH Robinson',
+  // 'XPO Logistics',
+  // 'Echo Global Logistics',
+  // etc.
+];
+```
+
+#### Phase 2: Update Vendor Search
+- Merge known brokers with vendors from invoices
+- Sort alphabetically
+- Show known brokers first when no query entered
+- Highlight which brokers have been used before
+
+#### Phase 3: Load Entry Form Integration
+- Add same autofill to the load entry form's vendor field
+- Allow adding new brokers to the list
+
+### Data Structure
+```typescript
+interface Broker {
+  name: string;
+  isKnown: boolean;  // from hardcoded list
+  usageCount?: number;  // times used in invoices
+  lastUsed?: Date;
+}
+```
+
+### UI Enhancements
+- Show broker icon for known brokers
+- Show usage count badge for frequently used vendors
+- "Add to known brokers" option for custom vendors
+
+---
+
 ## Notes
 
 - DRIVER 31% is already handled by the `percent` field on Invoice
 - Formula example: `FACTORING = I9 * 0.02` where I9 = YTD NET PAY
 - Each company may have different deduction types and formulas
+- **Broker list**: User will provide the full list of brokers for autofill feature

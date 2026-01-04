@@ -15,6 +15,9 @@ interface CompanyFormData {
   invoice_template: 'classic' | 'modern';
   default_percent: number;
   default_tax_percent: number;
+  factoring_rate: number;
+  dispatch_rate: number;
+  auto_deduction_base: 'YTD_INSURANCE';
   invoice_prefix: string;
   footer_note?: string | null;
 }
@@ -39,7 +42,10 @@ export default function CompanyForm({ company }: CompanyFormProps) {
     footer_note: data.footer_note || '',
     invoice_template: data.invoice_template || 'classic',
     default_percent: data.default_percent ?? 0,
-    default_tax_percent: data.default_tax_percent ?? 0
+    default_tax_percent: data.default_tax_percent ?? 0,
+    factoring_rate: data.factoring_rate ?? 2,
+    dispatch_rate: data.dispatch_rate ?? 6,
+    auto_deduction_base: data.auto_deduction_base || 'YTD_INSURANCE'
   });
 
   const { register, handleSubmit, setError, reset, formState: { errors } } = useForm<CompanyFormData>({
@@ -137,6 +143,42 @@ export default function CompanyForm({ company }: CompanyFormProps) {
         <div>
           <label className="block text-sm font-medium text-zinc-300">Logo URL</label>
           <input {...register('logo_url')} className="mt-1 block w-full rounded-lg border-zinc-700 bg-zinc-800 text-white shadow-sm border p-2.5 focus:ring-2 focus:ring-[#7a67e7] focus:border-transparent" />
+        </div>
+      </div>
+
+      <div className="border-t border-zinc-800 pt-4">
+        <h3 className="text-sm font-semibold text-zinc-200">Auto Deductions</h3>
+        <p className="text-xs text-zinc-500 mt-1">Factoring and Dispatch are calculated automatically from the selected base.</p>
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-zinc-300">Factoring Percent</label>
+            <input
+              type="number"
+              step="0.1"
+              {...register('factoring_rate', { required: true, valueAsNumber: true })}
+              className="mt-1 block w-full rounded-lg border-zinc-700 bg-zinc-800 text-white shadow-sm border p-2.5 focus:ring-2 focus:ring-[#7a67e7] focus:border-transparent"
+            />
+            {errors.factoring_rate?.message ? <p className="text-xs text-red-400 mt-1">{errors.factoring_rate.message}</p> : null}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-zinc-300">Dispatch Percent</label>
+            <input
+              type="number"
+              step="0.1"
+              {...register('dispatch_rate', { required: true, valueAsNumber: true })}
+              className="mt-1 block w-full rounded-lg border-zinc-700 bg-zinc-800 text-white shadow-sm border p-2.5 focus:ring-2 focus:ring-[#7a67e7] focus:border-transparent"
+            />
+            {errors.dispatch_rate?.message ? <p className="text-xs text-red-400 mt-1">{errors.dispatch_rate.message}</p> : null}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-zinc-300">Calculation Base</label>
+            <select
+              {...register('auto_deduction_base')}
+              className="mt-1 block w-full rounded-lg border-zinc-700 bg-zinc-800 text-white shadow-sm border p-2.5"
+            >
+              <option value="YTD_INSURANCE">YTD Insurance</option>
+            </select>
+          </div>
         </div>
       </div>
 

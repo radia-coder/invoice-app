@@ -3,12 +3,21 @@ import { NextResponse } from 'next/server'
 import { requireApiAuth } from '@/lib/api-auth'
 import { formatZodErrors, invoiceInputSchema } from '@/lib/validation'
 import { getInvoicePdfBuffer } from '@/lib/invoice-pdf'
+import {
+  buildAutoDeductionEntries,
+  calculateAutoDeductions,
+  getAutoDeductionConfigFromCompany,
+  mergeDeductionsWithAuto,
+  sumInsuranceDeductions
+} from '@/lib/auto-deductions'
 
 interface LoadInput {
   load_ref?: string | null;
+  vendor?: string | null;
   from_location: string;
   to_location: string;
   load_date: string;
+  delivery_date?: string | null;
   amount: string | number;
 }
 
@@ -16,6 +25,7 @@ interface DeductionInput {
   deduction_type: string;
   amount: string | number;
   note?: string | null;
+  deduction_date?: string | null;
 }
 
 export async function GET() {
@@ -132,15 +142,17 @@ export async function POST(request: Request) {
         paid_at: paidAt,
         notes,
         currency,
-        loads: {
-          create: loads.map((l: LoadInput) => ({
-            load_ref: l.load_ref ?? undefined,
-            from_location: l.from_location,
-            to_location: l.to_location,
-            load_date: new Date(l.load_date),
-            amount: parseFloat(l.amount.toString())
-          }))
-        },
+      loads: {
+        create: loads.map((l: LoadInput) => ({
+          load_ref: l.load_ref ?? undefined,
+          vendor: l.vendor ?? undefined,
+          from_location: l.from_location,
+          to_location: l.to_location,
+          load_date: new Date(l.load_date),
+          delivery_date: l.delivery_date ? new Date(l.delivery_date) : null,
+          amount: parseFloat(l.amount.toString())
+        }))
+      },
         deductions: {
           create: deductions.map((d: DeductionInput) => ({
             deduction_type: d.deduction_type,
@@ -158,10 +170,35 @@ export async function POST(request: Request) {
     })
 
     try {
+      const yearStart = new Date(invoice.week_end.getFullYear(), 0, 1)
+      const ytdInvoices = await prisma.invoice.findMany({
+        where: {
+          driver_id: invoice.driver_id,
+          week_end: {
+            gte: yearStart,
+            lte: invoice.week_end
+          }
+        },
+        select: { updated_at: true, deductions: true }
+      })
+      const ytdInsurance = ytdInvoices.reduce(
+        (sum, ytdInvoice) => sum + sumInsuranceDeductions(ytdInvoice.deductions),
+        0
+      )
+      const latestUpdatedAt = ytdInvoices.reduce((latest, ytdInvoice) => {
+        return ytdInvoice.updated_at > latest ? ytdInvoice.updated_at : latest
+      }, invoice.updated_at)
+
+      const autoConfig = getAutoDeductionConfigFromCompany(invoice.company)
+      const autoAmounts = calculateAutoDeductions(ytdInsurance, autoConfig)
+      const autoEntries = buildAutoDeductionEntries(autoAmounts, autoConfig)
+      const mergedDeductions = mergeDeductionsWithAuto(invoice.deductions, autoEntries)
+
       await getInvoicePdfBuffer({
         ...invoice,
         id: invoice.id,
-        updated_at: invoice.updated_at
+        deductions: mergedDeductions,
+        updated_at: latestUpdatedAt
       })
     } catch (error) {
       console.error('PDF warmup error:', error)

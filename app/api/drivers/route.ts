@@ -35,9 +35,12 @@ export async function POST(request: Request) {
   const body = await request.json()
   const rawCompanyId = body?.company_id
   const parsedCompanyId = rawCompanyId === null || rawCompanyId === undefined ? rawCompanyId : Number(rawCompanyId)
+  const rawTruckNumber = body?.truck_number
+  const truckNumber = typeof rawTruckNumber === 'string' ? rawTruckNumber.trim() : rawTruckNumber
   const parsed = driverCreateSchema.safeParse({
     name: body?.name,
     company_id: parsedCompanyId,
+    truck_number: truckNumber || null,
     email: body?.email ?? null,
     whatsapp_number: body?.whatsapp_number ?? null
   })
@@ -63,6 +66,7 @@ export async function POST(request: Request) {
     data: {
       name: parsed.data.name,
       company_id: targetCompanyId,
+      truck_number: parsed.data.truck_number,
       email: parsed.data.email,
       whatsapp_number: parsed.data.whatsapp_number,
       type: 'Company Driver'

@@ -55,6 +55,9 @@ export async function PUT(
     default_percent: Number(body.default_percent),
     default_tax_percent: Number(body.default_tax_percent),
     default_currency: 'USD',
+    factoring_rate: Number(body.factoring_rate ?? 2),
+    dispatch_rate: Number(body.dispatch_rate ?? 6),
+    auto_deduction_base: body.auto_deduction_base || 'YTD_INSURANCE',
     invoice_prefix: body.invoice_prefix,
     footer_note: body.footer_note || null
   };

@@ -11,6 +11,7 @@ interface CompanyOption {
 interface DriverItem {
   id: number;
   name: string;
+  truck_number?: string | null;
   email?: string | null;
   whatsapp_number?: string | null;
   company_name?: string | null;
@@ -35,6 +36,7 @@ export default function CompanyDriversManager({
   const [createName, setCreateName] = useState('');
   const [createEmail, setCreateEmail] = useState('');
   const [createPhone, setCreatePhone] = useState('');
+  const [createTruckNumber, setCreateTruckNumber] = useState('');
   const [createCompanyId, setCreateCompanyId] = useState(String(selectedCompanyId));
   const [createError, setCreateError] = useState('');
   const [createMessage, setCreateMessage] = useState('');
@@ -48,6 +50,11 @@ export default function CompanyDriversManager({
 
   const [unassigningId, setUnassigningId] = useState<number | null>(null);
   const [unassignError, setUnassignError] = useState('');
+
+  const [truckNumbers, setTruckNumbers] = useState<Record<number, string>>({});
+  const [truckSavingId, setTruckSavingId] = useState<number | null>(null);
+  const [truckError, setTruckError] = useState('');
+  const [truckMessage, setTruckMessage] = useState('');
 
   useEffect(() => {
     setCreateCompanyId(String(selectedCompanyId));
@@ -67,11 +74,21 @@ export default function CompanyDriversManager({
     });
   }, [availableDrivers]);
 
+  useEffect(() => {
+    const initial: Record<number, string> = {};
+    assignedDrivers.forEach((driver) => {
+      initial[driver.id] = driver.truck_number ?? '';
+    });
+    setTruckNumbers(initial);
+  }, [assignedDrivers]);
+
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault();
     setCreateError('');
     setCreateMessage('');
     setUnassignError('');
+    setTruckError('');
+    setTruckMessage('');
 
     if (!createName.trim()) {
       setCreateError('Name is required.');
@@ -87,6 +104,7 @@ export default function CompanyDriversManager({
           name: createName.trim(),
           email: createEmail.trim() || null,
           whatsapp_number: createPhone.trim() || null,
+          truck_number: createTruckNumber.trim() || null,
           company_id: Number(createCompanyId)
         })
       });
@@ -101,6 +119,7 @@ export default function CompanyDriversManager({
       setCreateName('');
       setCreateEmail('');
       setCreatePhone('');
+      setCreateTruckNumber('');
       router.refresh();
     } catch (error) {
       console.error(error);
@@ -115,6 +134,8 @@ export default function CompanyDriversManager({
     setAssignError('');
     setAssignMessage('');
     setUnassignError('');
+    setTruckError('');
+    setTruckMessage('');
 
     if (!assignDriverId) {
       setAssignError('Select a driver to assign.');
@@ -153,6 +174,8 @@ export default function CompanyDriversManager({
     setAssignMessage('');
     setAssignError('');
     setCreateError('');
+    setTruckError('');
+    setTruckMessage('');
     setUnassigningId(driverId);
 
     try {
@@ -174,6 +197,41 @@ export default function CompanyDriversManager({
       setUnassignError('Failed to unassign driver.');
     } finally {
       setUnassigningId(null);
+    }
+  };
+
+  const handleTruckNumberSave = async (driverId: number) => {
+    setTruckError('');
+    setTruckMessage('');
+    setCreateError('');
+    setAssignError('');
+    setUnassignError('');
+    setTruckSavingId(driverId);
+
+    const truckNumber = (truckNumbers[driverId] || '').trim();
+
+    try {
+      const res = await fetch(`/api/drivers/${driverId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          truck_number: truckNumber || null
+        })
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setTruckError(data?.error || 'Failed to update truck number.');
+        return;
+      }
+
+      setTruckMessage('Truck number updated.');
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      setTruckError('Failed to update truck number.');
+    } finally {
+      setTruckSavingId(null);
     }
   };
 
@@ -221,6 +279,15 @@ export default function CompanyDriversManager({
               value={createPhone}
               onChange={(event) => setCreatePhone(event.target.value)}
               placeholder="+1 555 000 1234"
+              className="mt-1 block w-full rounded-lg border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 shadow-sm border p-2.5 focus:ring-2 focus:ring-[#7a67e7] focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-zinc-300">Truck Number (optional)</label>
+            <input
+              value={createTruckNumber}
+              onChange={(event) => setCreateTruckNumber(event.target.value)}
+              placeholder="TRK 007"
               className="mt-1 block w-full rounded-lg border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 shadow-sm border p-2.5 focus:ring-2 focus:ring-[#7a67e7] focus:border-transparent"
             />
           </div>
@@ -302,6 +369,7 @@ export default function CompanyDriversManager({
             <thead className="bg-zinc-800/50">
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-zinc-400">Driver</th>
+                <th className="px-4 py-3 text-left font-medium text-zinc-400">Truck #</th>
                 <th className="px-4 py-3 text-left font-medium text-zinc-400">Email</th>
                 <th className="px-4 py-3 text-left font-medium text-zinc-400">Phone</th>
                 <th className="px-4 py-3"></th>
@@ -312,6 +380,29 @@ export default function CompanyDriversManager({
                 assignedDrivers.map((driver) => (
                   <tr key={driver.id} className="hover:bg-zinc-800/30 transition-colors">
                     <td className="px-4 py-3 font-medium text-white">{driver.name}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <input
+                          value={truckNumbers[driver.id] ?? ''}
+                          onChange={(event) =>
+                            setTruckNumbers((current) => ({
+                              ...current,
+                              [driver.id]: event.target.value
+                            }))
+                          }
+                          placeholder="TRK 007"
+                          className="w-32 rounded-lg border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-sm text-white placeholder-zinc-500 focus:ring-2 focus:ring-[#7a67e7] focus:border-transparent"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleTruckNumberSave(driver.id)}
+                          disabled={truckSavingId === driver.id}
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[#1f3a2a] hover:bg-[#274634] disabled:opacity-60"
+                        >
+                          {truckSavingId === driver.id ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-zinc-300">{driver.email || '-'}</td>
                     <td className="px-4 py-3 text-zinc-300">{driver.whatsapp_number || '-'}</td>
                     <td className="px-4 py-3 text-right">
@@ -328,7 +419,7 @@ export default function CompanyDriversManager({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-zinc-500">
+                  <td colSpan={5} className="px-4 py-6 text-center text-zinc-500">
                     No drivers assigned yet.
                   </td>
                 </tr>
@@ -337,6 +428,8 @@ export default function CompanyDriversManager({
           </table>
         </div>
         {unassignError ? <p className="mt-3 text-sm text-red-400">{unassignError}</p> : null}
+        {truckError ? <p className="mt-3 text-sm text-red-400">{truckError}</p> : null}
+        {truckMessage ? <p className="mt-3 text-sm text-emerald-400">{truckMessage}</p> : null}
       </div>
     </div>
   );

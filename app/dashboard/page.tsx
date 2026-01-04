@@ -5,6 +5,14 @@ import { FileText, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import InvoiceActions from '@/components/InvoiceActions';
 import { getSessionUser, isSuperAdmin } from '@/lib/auth';
 import { calculateInvoiceTotals } from '@/lib/invoice-calculations';
+import {
+  buildAutoDeductionEntries,
+  buildYtdInsuranceIndex,
+  calculateAutoDeductions,
+  getAutoDeductionConfigFromCompany,
+  getYtdInsurance,
+  mergeDeductionsWithAuto
+} from '@/lib/auto-deductions';
 import { Button } from '@/components/ui/button';
 import { Pagination, PaginationContent, PaginationItem, PaginationEllipsis } from '@/components/ui/pagination';
 import CommandPalette from '@/components/CommandPalette';
@@ -91,6 +99,32 @@ export default async function Home({
     })
   ]);
 
+  const driverIds = Array.from(new Set(invoices.map((invoice) => invoice.driver_id)));
+  const yearBounds = invoices.reduce(
+    (acc, invoice) => {
+      const year = invoice.week_end.getFullYear();
+      acc.min = Math.min(acc.min, year);
+      acc.max = Math.max(acc.max, year);
+      return acc;
+    },
+    { min: Number.POSITIVE_INFINITY, max: Number.NEGATIVE_INFINITY }
+  );
+
+  const ytdInvoices = driverIds.length
+    ? await prisma.invoice.findMany({
+        where: {
+          driver_id: { in: driverIds },
+          week_end: {
+            gte: new Date(yearBounds.min, 0, 1),
+            lte: new Date(yearBounds.max, 11, 31, 23, 59, 59, 999)
+          }
+        },
+        include: { deductions: true }
+      })
+    : [];
+
+  const ytdInsuranceIndex = buildYtdInsuranceIndex(ytdInvoices);
+
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   return (
@@ -176,9 +210,15 @@ export default async function Home({
             </li>
           ) : (
             invoices.map((invoice) => {
+              const autoConfig = getAutoDeductionConfigFromCompany(invoice.company);
+              const ytdInsurance = getYtdInsurance(ytdInsuranceIndex, invoice.driver_id, invoice.week_end);
+              const autoAmounts = calculateAutoDeductions(ytdInsurance, autoConfig);
+              const autoEntries = buildAutoDeductionEntries(autoAmounts, autoConfig);
+              const mergedDeductions = mergeDeductionsWithAuto(invoice.deductions, autoEntries);
+
               const totals = calculateInvoiceTotals({
                 loads: invoice.loads,
-                deductions: invoice.deductions,
+                deductions: mergedDeductions,
                 percent: invoice.percent,
                 tax_percent: invoice.tax_percent || 0,
                 driver_type: invoice.driver.type

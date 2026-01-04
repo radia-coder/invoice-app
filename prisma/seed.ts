@@ -143,7 +143,20 @@ async function main() {
   }
 
   // Seed default deduction types
-  const defaultDeductionTypes = ['Fuel', 'Toll', 'ELD', 'Insurance', 'Other']
+  const defaultDeductionTypes = [
+    'Factoring',
+    'Dispatch',
+    'Fuel',
+    'Maintenance',
+    'Tolls/Violations',
+    'Insurance',
+    'Trailer',
+    'Payback',
+    'ELD',
+    'Camera',
+    'Advanced',
+    'Other'
+  ]
 
   console.log('\nSeeding default deduction types...')
   for (const typeName of defaultDeductionTypes) {
