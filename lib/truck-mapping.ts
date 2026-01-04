@@ -43,13 +43,59 @@ const DRIVER_TRUCK_MAP: Record<string, string> = {
   'abdiqani abraham': 'TRK 265',
 };
 
+type CompanyDriverEntry = { name: string; truckNumber: string };
+
+const COMPANY_DRIVER_DIRECTORY: Record<string, CompanyDriverEntry[]> = {
+  Bakar: [
+    { name: 'Wandu Mazgabu', truckNumber: 'TRK 902' },
+  ],
+  Hade: [
+    { name: 'Ahmed Farah', truckNumber: 'TRK 517' },
+    { name: 'Ayub Mohamed', truckNumber: 'TRK 1649' },
+    { name: 'Ishmael Bundu', truckNumber: 'TRK 056' },
+    { name: 'Jabuti Faqi', truckNumber: 'TRK 354' },
+    { name: 'Mohamed Dikale', truckNumber: 'TRK 520' },
+    { name: 'Mohamud Ahmed', truckNumber: 'TRK 316' },
+    { name: 'Zakaria Muse', truckNumber: 'TRK 768' },
+  ],
+  SSS: [
+    { name: 'Adan Yusuf', truckNumber: 'TRK 1468' },
+    { name: 'Issack Rashid', truckNumber: 'TRK 03171' },
+    { name: 'Samatar Ahmed', truckNumber: 'TRK 6878' },
+  ],
+  Weyrah: [
+    { name: 'Abdihakin Shilow', truckNumber: 'TRK 819' },
+    { name: 'Abdirahman Ahmed Ali', truckNumber: 'TRK 4564' },
+    { name: 'Abdiwahid Kadiye', truckNumber: 'TRK 133' },
+    { name: 'Abdurahman Husein', truckNumber: 'TRK 648' },
+    { name: 'Abukar Mohamed Abdisalam', truckNumber: 'TRK 9215' },
+    { name: 'Dahir Abdulle', truckNumber: 'TRK 172' },
+    { name: 'Habib Hashi', truckNumber: 'TRK 158' },
+    { name: 'Hassan Shire', truckNumber: 'TRK 7840' },
+    { name: 'Kamara Saidu', truckNumber: 'TRK 167' },
+    { name: 'Nur Mohamed', truckNumber: 'TRK 9215' },
+    { name: 'Sharif Ali', truckNumber: 'TRK 457' },
+    { name: 'Sybiss Kevin', truckNumber: 'TRK 725' },
+  ],
+  Zamo: [
+    { name: 'Abdihakim Elmi', truckNumber: 'TRK 040' },
+    { name: 'Ahmed Ali', truckNumber: 'TRK 476' },
+    { name: 'Ahmed Dahir Abdi', truckNumber: 'TRK 007' },
+    { name: 'abdiqani abraham', truckNumber: 'TRK 265' },
+  ],
+};
+
 // Normalize driver name for lookup
-function normalizeDriverName(name: string): string {
+export function normalizeDriverName(name: string): string {
   return name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
     .replace(/\s+/g, ' ');
+}
+
+function normalizeCompanyName(name: string): string {
+  return name.toLowerCase().trim();
 }
 
 type TruckMatchType = 'exact' | 'partial' | 'fuzzy' | 'db' | 'none';
@@ -67,6 +113,21 @@ for (const [name, truckNumber] of Object.entries(DRIVER_TRUCK_MAP)) {
   const normalized = normalizeDriverName(name);
   NORMALIZED_TRUCK_MAP.set(normalized, truckNumber);
   NORMALIZED_NAME_MAP.set(normalized, name);
+}
+
+const COMPANY_DRIVER_LOOKUP = new Map<string, Map<string, CompanyDriverEntry>>();
+
+for (const [companyName, entries] of Object.entries(COMPANY_DRIVER_DIRECTORY)) {
+  const companyKey = normalizeCompanyName(companyName);
+  const driverMap = new Map<string, CompanyDriverEntry>();
+  for (const entry of entries) {
+    driverMap.set(normalizeDriverName(entry.name), entry);
+  }
+  COMPANY_DRIVER_LOOKUP.set(companyKey, driverMap);
+}
+
+export function getCompanyDriverLookup(companyName: string): Map<string, CompanyDriverEntry> | null {
+  return COMPANY_DRIVER_LOOKUP.get(normalizeCompanyName(companyName)) ?? null;
 }
 
 function levenshteinDistance(a: string, b: string): number {

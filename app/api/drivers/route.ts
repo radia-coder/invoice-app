@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import { requireApiAuth } from '@/lib/api-auth'
 import { driverCreateSchema, formatZodErrors } from '@/lib/validation'
+import { getCompanyDriverLookup, normalizeDriverName } from '@/lib/truck-mapping'
 
 export async function GET(request: Request) {
   const { user, response, isSuperAdmin } = await requireApiAuth()
@@ -25,6 +26,27 @@ export async function GET(request: Request) {
     where,
     orderBy: { name: 'asc' }
   })
+
+  if (filterCompanyId) {
+    const company = await prisma.company.findUnique({
+      where: { id: filterCompanyId },
+      select: { name: true }
+    })
+    const directory = company?.name ? getCompanyDriverLookup(company.name) : null
+    if (directory) {
+      const filteredDrivers = drivers
+        .filter((driver) => directory.has(normalizeDriverName(driver.name)))
+        .map((driver) => {
+          const entry = directory.get(normalizeDriverName(driver.name))
+          return {
+            ...driver,
+            truck_number: entry?.truckNumber ?? driver.truck_number
+          }
+        })
+      return NextResponse.json(filteredDrivers)
+    }
+  }
+
   return NextResponse.json(drivers)
 }
 

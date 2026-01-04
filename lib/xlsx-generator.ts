@@ -385,7 +385,7 @@ function createWeekBlock(
 
   const driverLabelCell = worksheet.getCell(driverRow, 10);
   driverLabelCell.value = {
-    formula: `="DRIVER " & (${driverPercentCellRef}*100) & "%"`,
+    formula: `"DRIVER " & (${driverPercentCellRef}*100) & "%"`,
     result: `DRIVER ${formatPercentValue(weekData.driverPercentRate)}%`,
   };
 
@@ -574,7 +574,7 @@ function createWeekBlock(
     { label: 'YTD ELD', weeklyRef: `K${eldRow}`, result: ytdExpenses?.eld || 0 },
     { label: 'YTD CAMERA', weeklyRef: `K${cameraRow}`, result: ytdExpenses?.camera || 0 },
     {
-      labelFormula: `="YTD DRIVER " & (${driverPercentCellRef}*100) & "%"`,
+      labelFormula: `"YTD DRIVER " & (${driverPercentCellRef}*100) & "%"`,
       labelResult: `YTD DRIVER ${formatPercentValue(weekData.driverPercentRate)}%`,
       weeklyRef: `K${driverRow}`,
       result: ytdExpenses?.driverPercent || 0,
@@ -677,7 +677,7 @@ function createSampleSheet(workbook: ExcelJS.Workbook) {
   // Create 3 sample week blocks to show the template
   let currentRow = 1;
 
-  for (let weekNum = 1; weekNum <= 3; weekNum++) {
+  for (let weekNum = 1; weekNum <= MAX_WEEKS; weekNum++) {
     const sampleWeek: WeekData = {
       weekNumber: weekNum,
       weekStart: getWeekStartDate(weekNum),

@@ -37,6 +37,7 @@ interface Driver {
   email?: string | null;
   whatsapp_number?: string | null;
   whatsapp_link?: string | null;
+  truck_number?: string | null;
 }
 
 interface LoadItem {
@@ -627,7 +628,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                 <select {...register('driver_id', { required: true })} disabled={!selectedCompanyId} className="mt-1 block w-full rounded-lg border-zinc-700 bg-zinc-800 text-white shadow-sm focus:ring-2 focus:ring-[#7a67e7] border p-2.5 disabled:bg-zinc-900 disabled:text-zinc-500">
                     <option value="">Select Driver</option>
                     {drivers.map(d => (
-                        <option key={d.id} value={d.id}>{d.name}</option>
+                        <option key={d.id} value={d.id}>{d.name}{d.truck_number ? ` — ${d.truck_number}` : ''}</option>
                     ))}
                 </select>
                 {errors.driver_id?.message ? <p className="text-xs text-red-400 mt-1">{errors.driver_id.message}</p> : null}
