@@ -485,7 +485,7 @@ export async function GET(request: NextRequest) {
           tax_percent: invoice.tax_percent || 0,
           driver_type: invoice.driver.type,
         });
-        expenses.driverPercent = totals.percentAmount;
+        expenses.driverPercent = invoice.percent || 0;
 
         // Map loads with REAL data
         const loads: LoadData[] = invoice.loads

@@ -229,6 +229,7 @@ function createWeekBlock(
     'PAYBACK',
     'ELD',
     'CAMERA',
+    'DRIVER ..%',
     'ADVANCED',
   ];
 
@@ -243,6 +244,7 @@ function createWeekBlock(
     weekData.expenses.payback,
     weekData.expenses.eld,
     weekData.expenses.camera,
+    weekData.expenses.driverPercent,
     weekData.expenses.advanced,
   ];
 
@@ -259,13 +261,15 @@ function createWeekBlock(
       bold: true,
     });
 
+    const isDriverPercent = label.startsWith('DRIVER');
+
     // Amount cell (K column)
     const amountCell = worksheet.getCell(expenseRow, 11); // Column K
-    amountCell.value = amount || 0;
+    amountCell.value = isDriverPercent ? (amount || 0) / 100 : amount || 0;
     setCellStyle(amountCell, {
       bgColor: COLORS.lightBlue,
       bold: true,
-      numFmt: '"$"#,##0.00',
+      numFmt: isDriverPercent ? '0.##%' : '"$"#,##0.00',
     });
   }
 
