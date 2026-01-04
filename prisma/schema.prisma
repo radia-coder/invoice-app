@@ -150,3 +150,17 @@ model UserSession {
   @@index([session_token])
   @@index([is_active])
 }
+
+// Track exports for delta mode
+model ExportLog {
+  id            Int       @id @default(autoincrement())
+  user_id       Int?
+  company_id    Int?
+  export_type   String    // "full", "delta"
+  scope         String    // "all", "company", "driver"
+  driver_ids    String?   // JSON array of driver IDs included
+  exported_at   DateTime  @default(now())
+
+  @@index([company_id])
+  @@index([exported_at])
+}

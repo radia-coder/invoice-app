@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 interface LoadData {
   loadRef: string | null;
   vendor: string;
-  driver: string;
+  driverName: string;
   puDate: Date | null;
   delDate: Date | null;
   fromState: string;
@@ -35,11 +35,13 @@ interface WeekData {
   loads: LoadData[];
   expenses: ExpenseData;
   brokerTotal: number;
+  hasData: boolean; // Whether this week has actual invoice data
 }
 
 interface DriverSheetData {
+  driverId: number;
   driverName: string;
-  truckNumber: string;
+  truckNumber: string; // STRING - preserves leading zeros
   companyName: string;
   weeks: WeekData[];
   ytdGross: number;
@@ -79,12 +81,10 @@ const COLORS = {
   white: 'FFFFFFFF',
 };
 
-// Row offset for each week block (25 rows per week)
-const ROWS_PER_WEEK = 25;
-
-function getWeekStartRow(weekIndex: number): number {
-  return weekIndex * ROWS_PER_WEEK + 1;
-}
+// Each week block is exactly 18 rows (no gaps between weeks)
+const ROWS_PER_WEEK = 18;
+const MAX_WEEKS = 50;
+const MAX_LOADS_PER_WEEK = 6;
 
 function setCellStyle(
   cell: ExcelJS.Cell,
@@ -96,6 +96,7 @@ function setCellStyle(
     valign?: 'top' | 'middle' | 'bottom';
     numFmt?: string;
     border?: boolean;
+    fontSize?: number;
   }
 ) {
   if (options.bgColor) {
@@ -109,6 +110,7 @@ function setCellStyle(
   cell.font = {
     color: { argb: options.fontColor || COLORS.black },
     bold: options.bold || false,
+    size: options.fontSize || 11,
   };
 
   cell.alignment = {
@@ -130,11 +132,33 @@ function setCellStyle(
   }
 }
 
-function formatDateCell(date: Date | null): string {
+function formatDateForCell(date: Date | null): string {
   if (!date) return '';
-  return format(new Date(date), 'MM/dd/yy');
+  try {
+    return format(new Date(date), 'MM/dd/yy');
+  } catch {
+    return '';
+  }
 }
 
+function setColumnWidths(worksheet: ExcelJS.Worksheet) {
+  worksheet.getColumn('A').width = 12;
+  worksheet.getColumn('B').width = 12;
+  worksheet.getColumn('C').width = 18;
+  worksheet.getColumn('D').width = 18;
+  worksheet.getColumn('E').width = 12;
+  worksheet.getColumn('F').width = 12;
+  worksheet.getColumn('G').width = 14;
+  worksheet.getColumn('H').width = 14;
+  worksheet.getColumn('I').width = 12;
+  worksheet.getColumn('J').width = 18;
+  worksheet.getColumn('K').width = 12;
+}
+
+/**
+ * Create a single week block starting at the given row
+ * Returns the next row number after this block
+ */
 function createWeekBlock(
   worksheet: ExcelJS.Worksheet,
   weekData: WeekData,
@@ -144,30 +168,26 @@ function createWeekBlock(
     ytdNetPay: number;
     ytdExpenses: DriverSheetData['ytdExpenses'];
   }
-) {
+): number {
   const r = startRow;
 
-  // Set column widths (only once, on first week)
-  if (startRow === 1) {
-    worksheet.getColumn('A').width = 12;
-    worksheet.getColumn('B').width = 12;
-    worksheet.getColumn('C').width = 15;
-    worksheet.getColumn('D').width = 15;
-    worksheet.getColumn('E').width = 12;
-    worksheet.getColumn('F').width = 12;
-    worksheet.getColumn('G').width = 12;
-    worksheet.getColumn('H').width = 12;
-    worksheet.getColumn('I').width = 12;
-    worksheet.getColumn('J').width = 18;
-    worksheet.getColumn('K').width = 12;
-  }
-
-  // ===== ROW 1: HEADER ROW =====
-  const headerRow = worksheet.getRow(r);
-  const headers = ['WEEK ' + weekData.weekNumber, 'LOAD#', 'VENDOR', 'Driver', 'PU DATE', 'DEL DATE', 'FROM STATE', 'TO STATE', 'RATE$', 'EXPENSES', 'AMOUNT'];
+  // ===== ROW 1: HEADER ROW (Week #, LOAD#, VENDOR, etc.) =====
+  const headers = [
+    `WEEK ${weekData.weekNumber}`,
+    'LOAD#',
+    'VENDOR',
+    'Driver',
+    'PU DATE',
+    'DEL DATE',
+    'FROM STATE',
+    'TO STATE',
+    'RATE$',
+    'EXPENSES',
+    'AMOUNT',
+  ];
 
   headers.forEach((header, idx) => {
-    const cell = headerRow.getCell(idx + 1);
+    const cell = worksheet.getCell(r, idx + 1);
     cell.value = header;
     setCellStyle(cell, {
       bgColor: COLORS.black,
@@ -178,8 +198,18 @@ function createWeekBlock(
     });
   });
 
+  // Add Week Start/End info in merged cells after headers (same row, columns L-M)
+  const weekInfoCell = worksheet.getCell(r, 12); // Column L
+  weekInfoCell.value = `Week: ${formatDateForCell(weekData.weekStart)} - ${formatDateForCell(weekData.weekEnd)}`;
+  setCellStyle(weekInfoCell, {
+    fontColor: COLORS.white,
+    bgColor: COLORS.black,
+    bold: true,
+    fontSize: 10,
+  });
+
   // ===== ROW 2: BROKER label + first expense =====
-  const brokerCell = worksheet.getCell(`A${r + 1}`);
+  const brokerCell = worksheet.getCell(r + 1, 1); // A2
   brokerCell.value = 'BROKER';
   setCellStyle(brokerCell, {
     bgColor: COLORS.black,
@@ -187,85 +217,14 @@ function createWeekBlock(
     bold: true,
   });
 
-  // Rate sub-header (I2)
-  const rateSubHeader = worksheet.getCell(`I${r + 1}`);
+  // Rate sub-header (I2) - light blue
+  const rateSubHeader = worksheet.getCell(r + 1, 9); // I2
   setCellStyle(rateSubHeader, {
     bgColor: COLORS.lightBlue,
     bold: true,
   });
 
-  // ===== ROWS 3-8: LOAD LABELS (A3-A8) and LOAD DATA (B3-H8) =====
-  for (let i = 0; i < 6; i++) {
-    const loadRow = r + 2 + i;
-
-    // Load label (A column)
-    const labelCell = worksheet.getCell(`A${loadRow}`);
-    labelCell.value = `LOAD #${i + 1}`;
-    setCellStyle(labelCell, {
-      bgColor: COLORS.black,
-      fontColor: COLORS.lavender,
-      bold: true,
-    });
-
-    // Load data cells (B-H) - peach background
-    for (let col = 2; col <= 8; col++) {
-      const dataCell = worksheet.getRow(loadRow).getCell(col);
-      setCellStyle(dataCell, {
-        bgColor: COLORS.peach,
-        border: true,
-      });
-    }
-
-    // Rate cell (I column) - light blue
-    const rateCell = worksheet.getCell(`I${loadRow}`);
-    setCellStyle(rateCell, {
-      bgColor: COLORS.lightBlue,
-      bold: true,
-      numFmt: '"$"#,##0.00',
-      border: true,
-    });
-
-    // Fill load data if available
-    const load = weekData.loads[i];
-    if (load) {
-      worksheet.getCell(`B${loadRow}`).value = load.loadRef || '';
-      worksheet.getCell(`C${loadRow}`).value = load.vendor || '';
-      worksheet.getCell(`D${loadRow}`).value = load.driver || '';
-      worksheet.getCell(`E${loadRow}`).value = formatDateCell(load.puDate);
-      worksheet.getCell(`F${loadRow}`).value = formatDateCell(load.delDate);
-      worksheet.getCell(`G${loadRow}`).value = load.fromState || '';
-      worksheet.getCell(`H${loadRow}`).value = load.toState || '';
-      rateCell.value = load.rate || 0;
-    } else {
-      rateCell.value = 0;
-    }
-  }
-
-  // ===== ROW 9: BROKER TOTALS =====
-  const totalsRow = r + 8;
-
-  // Merge A9:H9 for "BROKER TOTALS" label
-  worksheet.mergeCells(`A${totalsRow}:H${totalsRow}`);
-  const brokerTotalsCell = worksheet.getCell(`A${totalsRow}`);
-  brokerTotalsCell.value = 'BROKER TOTALS';
-  setCellStyle(brokerTotalsCell, {
-    bgColor: COLORS.black,
-    fontColor: COLORS.yellow,
-    bold: true,
-    align: 'center',
-  });
-
-  // Broker total sum (I9)
-  const brokerSumCell = worksheet.getCell(`I${totalsRow}`);
-  brokerSumCell.value = { formula: `SUM(I${r + 2}:I${r + 7})` };
-  setCellStyle(brokerSumCell, {
-    bgColor: COLORS.darkGreen,
-    fontColor: COLORS.brightGreen,
-    bold: true,
-    numFmt: '"$"#,##0.00',
-  });
-
-  // ===== EXPENSES SECTION (J and K columns) =====
+  // ===== EXPENSE LABELS AND AMOUNTS (J2:K13) =====
   const expenseLabels = [
     'FACTORING',
     'DISPATCH',
@@ -299,16 +258,16 @@ function createWeekBlock(
   expenseLabels.forEach((label, idx) => {
     const expenseRow = r + 1 + idx;
 
-    // Label cell (J)
-    const labelCell = worksheet.getCell(`J${expenseRow}`);
+    // Label cell (J column)
+    const labelCell = worksheet.getCell(expenseRow, 10); // Column J
     labelCell.value = label;
     setCellStyle(labelCell, {
       bgColor: COLORS.gray,
       bold: true,
     });
 
-    // Amount cell (K)
-    const amountCell = worksheet.getCell(`K${expenseRow}`);
+    // Amount cell (K column)
+    const amountCell = worksheet.getCell(expenseRow, 11); // Column K
     amountCell.value = expenseValues[idx] || 0;
     setCellStyle(amountCell, {
       bgColor: COLORS.lightBlue,
@@ -317,9 +276,80 @@ function createWeekBlock(
     });
   });
 
-  // ===== TOTAL OWE (Row after expenses) =====
+  // ===== ROWS 3-8: LOAD LABELS (A3-A8) and LOAD DATA (B3-H8, I3-I8) =====
+  for (let i = 0; i < MAX_LOADS_PER_WEEK; i++) {
+    const loadRow = r + 2 + i;
+
+    // Load label (A column) - LOAD #1, LOAD #2, etc.
+    const labelCell = worksheet.getCell(loadRow, 1); // Column A
+    labelCell.value = `LOAD #${i + 1}`;
+    setCellStyle(labelCell, {
+      bgColor: COLORS.black,
+      fontColor: COLORS.lavender,
+      bold: true,
+    });
+
+    // Load data cells (B-H) - peach background with borders
+    for (let col = 2; col <= 8; col++) {
+      const dataCell = worksheet.getCell(loadRow, col);
+      setCellStyle(dataCell, {
+        bgColor: COLORS.peach,
+        border: true,
+      });
+    }
+
+    // Rate cell (I column) - light blue
+    const rateCell = worksheet.getCell(loadRow, 9); // Column I
+    setCellStyle(rateCell, {
+      bgColor: COLORS.lightBlue,
+      bold: true,
+      numFmt: '"$"#,##0.00',
+      border: true,
+    });
+
+    // Fill actual load data if available
+    const load = weekData.loads[i];
+    if (load) {
+      worksheet.getCell(loadRow, 2).value = load.loadRef || ''; // B - LOAD#
+      worksheet.getCell(loadRow, 3).value = load.vendor || ''; // C - VENDOR
+      worksheet.getCell(loadRow, 4).value = load.driverName || ''; // D - Driver
+      worksheet.getCell(loadRow, 5).value = formatDateForCell(load.puDate); // E - PU DATE
+      worksheet.getCell(loadRow, 6).value = formatDateForCell(load.delDate); // F - DEL DATE
+      worksheet.getCell(loadRow, 7).value = load.fromState || ''; // G - FROM STATE
+      worksheet.getCell(loadRow, 8).value = load.toState || ''; // H - TO STATE
+      worksheet.getCell(loadRow, 9).value = load.rate || 0; // I - RATE$
+    } else {
+      worksheet.getCell(loadRow, 9).value = 0; // Empty rate
+    }
+  }
+
+  // ===== ROW 9: BROKER TOTALS =====
+  const totalsRow = r + 8;
+
+  // Merge A9:H9 for "BROKER TOTALS" label
+  worksheet.mergeCells(totalsRow, 1, totalsRow, 8);
+  const brokerTotalsCell = worksheet.getCell(totalsRow, 1);
+  brokerTotalsCell.value = 'BROKER TOTALS';
+  setCellStyle(brokerTotalsCell, {
+    bgColor: COLORS.black,
+    fontColor: COLORS.yellow,
+    bold: true,
+    align: 'center',
+  });
+
+  // Broker total sum formula (I9)
+  const brokerSumCell = worksheet.getCell(totalsRow, 9);
+  brokerSumCell.value = { formula: `SUM(I${r + 2}:I${r + 7})` };
+  setCellStyle(brokerSumCell, {
+    bgColor: COLORS.darkGreen,
+    fontColor: COLORS.brightGreen,
+    bold: true,
+    numFmt: '"$"#,##0.00',
+  });
+
+  // ===== ROW 14: TOTAL OWE =====
   const totalOweRow = r + 13;
-  const totalOweLabelCell = worksheet.getCell(`J${totalOweRow}`);
+  const totalOweLabelCell = worksheet.getCell(totalOweRow, 10); // J14
   totalOweLabelCell.value = 'TOTAL OWE';
   setCellStyle(totalOweLabelCell, {
     bgColor: COLORS.red,
@@ -327,7 +357,7 @@ function createWeekBlock(
     bold: true,
   });
 
-  const totalOweAmountCell = worksheet.getCell(`K${totalOweRow}`);
+  const totalOweAmountCell = worksheet.getCell(totalOweRow, 11); // K14
   totalOweAmountCell.value = { formula: `SUM(K${r + 1}:K${r + 12})` };
   setCellStyle(totalOweAmountCell, {
     bgColor: COLORS.red,
@@ -336,9 +366,9 @@ function createWeekBlock(
     numFmt: '"$"#,##0.00',
   });
 
-  // ===== WEEKLY GROSS =====
+  // ===== ROW 15: WEEKLY GROSS =====
   const weeklyGrossRow = r + 14;
-  const weeklyGrossLabelCell = worksheet.getCell(`J${weeklyGrossRow}`);
+  const weeklyGrossLabelCell = worksheet.getCell(weeklyGrossRow, 10); // J15
   weeklyGrossLabelCell.value = 'WEEKLY GROSS';
   setCellStyle(weeklyGrossLabelCell, {
     bgColor: COLORS.black,
@@ -346,7 +376,7 @@ function createWeekBlock(
     bold: true,
   });
 
-  const weeklyGrossAmountCell = worksheet.getCell(`K${weeklyGrossRow}`);
+  const weeklyGrossAmountCell = worksheet.getCell(weeklyGrossRow, 11); // K15
   weeklyGrossAmountCell.value = { formula: `I${totalsRow}` };
   setCellStyle(weeklyGrossAmountCell, {
     bgColor: COLORS.black,
@@ -355,9 +385,9 @@ function createWeekBlock(
     numFmt: '"$"#,##0.00',
   });
 
-  // ===== WEEKLY NET PAY =====
+  // ===== ROW 16: WEEKLY NET PAY =====
   const weeklyNetRow = r + 15;
-  const weeklyNetLabelCell = worksheet.getCell(`J${weeklyNetRow}`);
+  const weeklyNetLabelCell = worksheet.getCell(weeklyNetRow, 10); // J16
   weeklyNetLabelCell.value = 'WEEKLY NET PAY';
   setCellStyle(weeklyNetLabelCell, {
     bgColor: COLORS.darkGray,
@@ -365,7 +395,7 @@ function createWeekBlock(
     bold: true,
   });
 
-  const weeklyNetAmountCell = worksheet.getCell(`K${weeklyNetRow}`);
+  const weeklyNetAmountCell = worksheet.getCell(weeklyNetRow, 11); // K16
   weeklyNetAmountCell.value = { formula: `K${weeklyGrossRow}-K${totalOweRow}` };
   setCellStyle(weeklyNetAmountCell, {
     bgColor: COLORS.darkGray,
@@ -374,9 +404,9 @@ function createWeekBlock(
     numFmt: '"$"#,##0.00',
   });
 
-  // ===== YTD GROSS =====
+  // ===== ROW 17: YTD GROSS =====
   const ytdGrossRow = r + 16;
-  const ytdGrossLabelCell = worksheet.getCell(`J${ytdGrossRow}`);
+  const ytdGrossLabelCell = worksheet.getCell(ytdGrossRow, 10); // J17
   ytdGrossLabelCell.value = 'YTD GROSS';
   setCellStyle(ytdGrossLabelCell, {
     bgColor: COLORS.gold,
@@ -384,7 +414,7 @@ function createWeekBlock(
     bold: true,
   });
 
-  const ytdGrossAmountCell = worksheet.getCell(`K${ytdGrossRow}`);
+  const ytdGrossAmountCell = worksheet.getCell(ytdGrossRow, 11); // K17
   ytdGrossAmountCell.value = ytdData?.ytdGross || 0;
   setCellStyle(ytdGrossAmountCell, {
     bgColor: COLORS.gold,
@@ -393,9 +423,9 @@ function createWeekBlock(
     numFmt: '"$"#,##0.00',
   });
 
-  // ===== YTD NET PAY =====
+  // ===== ROW 18: YTD NET PAY =====
   const ytdNetRow = r + 17;
-  const ytdNetLabelCell = worksheet.getCell(`J${ytdNetRow}`);
+  const ytdNetLabelCell = worksheet.getCell(ytdNetRow, 10); // J18
   ytdNetLabelCell.value = 'YTD NET PAY';
   setCellStyle(ytdNetLabelCell, {
     bgColor: COLORS.gold,
@@ -403,7 +433,7 @@ function createWeekBlock(
     bold: true,
   });
 
-  const ytdNetAmountCell = worksheet.getCell(`K${ytdNetRow}`);
+  const ytdNetAmountCell = worksheet.getCell(ytdNetRow, 11); // K18
   ytdNetAmountCell.value = ytdData?.ytdNetPay || 0;
   setCellStyle(ytdNetAmountCell, {
     bgColor: COLORS.lightBlue,
@@ -412,90 +442,43 @@ function createWeekBlock(
     numFmt: '"$"#,##0.00',
   });
 
-  // ===== YTD EXPENSE SUMMARY =====
-  if (ytdData) {
-    const ytdExpenseLabels = [
-      { label: 'YTD FUEL', value: ytdData.ytdExpenses.fuel },
-      { label: 'YTD TOLLS', value: ytdData.ytdExpenses.tolls },
-      { label: 'YTD TRAILER', value: ytdData.ytdExpenses.trailer },
-      { label: 'YTD ELD', value: ytdData.ytdExpenses.eld },
-      { label: 'YTD CAMERA', value: ytdData.ytdExpenses.camera },
-      { label: 'YTD DRIVER 31%', value: ytdData.ytdExpenses.driverPercent },
-      { label: 'YTD MAINTENANCE', value: ytdData.ytdExpenses.maintenance },
-      { label: 'YTD INSURANCE', value: ytdData.ytdExpenses.insurance },
-      { label: 'YTD PAYBACK', value: ytdData.ytdExpenses.payback },
-      { label: 'YTD ADVANCED', value: ytdData.ytdExpenses.advanced },
-    ];
-
-    ytdExpenseLabels.forEach((item, idx) => {
-      const ytdExpRow = r + 18 + idx;
-
-      const ytdExpLabelCell = worksheet.getCell(`J${ytdExpRow}`);
-      ytdExpLabelCell.value = item.label;
-      setCellStyle(ytdExpLabelCell, {
-        bgColor: COLORS.lightGray,
-        fontColor: COLORS.black,
-        bold: true,
-      });
-
-      const ytdExpAmountCell = worksheet.getCell(`K${ytdExpRow}`);
-      ytdExpAmountCell.value = item.value || 0;
-      setCellStyle(ytdExpAmountCell, {
-        bgColor: COLORS.lightGray,
-        fontColor: COLORS.black,
-        bold: true,
-        numFmt: '"$"#,##0.00',
-      });
-    });
-
-    // YTD TOTAL OWE
-    const ytdTotalOweRow = r + 28;
-    const ytdTotalOweLabelCell = worksheet.getCell(`J${ytdTotalOweRow}`);
-    ytdTotalOweLabelCell.value = 'YTD TOTAL OWE';
-    setCellStyle(ytdTotalOweLabelCell, {
-      bgColor: COLORS.red,
-      fontColor: COLORS.black,
-      bold: true,
-    });
-
-    const ytdTotalOweAmountCell = worksheet.getCell(`K${ytdTotalOweRow}`);
-    ytdTotalOweAmountCell.value = { formula: `SUM(K${r + 18}:K${r + 27})` };
-    setCellStyle(ytdTotalOweAmountCell, {
-      bgColor: COLORS.red,
-      fontColor: COLORS.black,
-      bold: true,
-      numFmt: '"$"#,##0.00',
-    });
-  }
+  // Return next row (no gap - Week 2 starts immediately after Week 1)
+  return r + ROWS_PER_WEEK;
 }
 
 function createSampleSheet(workbook: ExcelJS.Workbook) {
   const worksheet = workbook.addWorksheet('SAMPLE');
+  setColumnWidths(worksheet);
 
-  // Create empty template with Week 1 placeholder
-  const sampleWeek: WeekData = {
-    weekNumber: 1,
-    weekStart: new Date('2026-01-01'),
-    weekEnd: new Date('2026-01-07'),
-    loads: [],
-    expenses: {
-      factoring: 0,
-      dispatch: 0,
-      fuel: 0,
-      maintenance: 0,
-      tollsViolations: 0,
-      insurance: 0,
-      trailer: 0,
-      payback: 0,
-      eld: 0,
-      camera: 0,
-      driverPercent: 0,
-      advanced: 0,
-    },
-    brokerTotal: 0,
-  };
+  // Create 3 sample week blocks to show the template
+  let currentRow = 1;
 
-  createWeekBlock(worksheet, sampleWeek, 1);
+  for (let weekNum = 1; weekNum <= 3; weekNum++) {
+    const sampleWeek: WeekData = {
+      weekNumber: weekNum,
+      weekStart: new Date(2026, 0, 1 + (weekNum - 1) * 7),
+      weekEnd: new Date(2026, 0, 7 + (weekNum - 1) * 7),
+      loads: [],
+      expenses: {
+        factoring: 0,
+        dispatch: 0,
+        fuel: 0,
+        maintenance: 0,
+        tollsViolations: 0,
+        insurance: 0,
+        trailer: 0,
+        payback: 0,
+        eld: 0,
+        camera: 0,
+        driverPercent: 0,
+        advanced: 0,
+      },
+      brokerTotal: 0,
+      hasData: false,
+    };
+
+    currentRow = createWeekBlock(worksheet, sampleWeek, currentRow);
+  }
 
   return worksheet;
 }
@@ -504,40 +487,82 @@ function createDriverSheet(
   workbook: ExcelJS.Workbook,
   driverData: DriverSheetData
 ) {
-  const sheetName = driverData.truckNumber || `Driver ${driverData.driverName}`;
-  // Excel sheet names have max 31 chars
-  const truncatedName = sheetName.substring(0, 31);
-  const worksheet = workbook.addWorksheet(truncatedName);
+  // Sheet name is the truck number (max 31 chars for Excel)
+  const sheetName = driverData.truckNumber.substring(0, 31);
+  const worksheet = workbook.addWorksheet(sheetName);
+  setColumnWidths(worksheet);
 
-  // Add week start/end at top (before the block)
-  if (driverData.weeks.length > 0) {
-    const firstWeek = driverData.weeks[0];
-    worksheet.getCell('A1').value = `Week Start: ${formatDateCell(firstWeek.weekStart)}`;
-    worksheet.getCell('C1').value = `Week End: ${formatDateCell(firstWeek.weekEnd)}`;
-    worksheet.getCell('A1').font = { bold: true };
-    worksheet.getCell('C1').font = { bold: true };
+  // Create all 50 week blocks
+  let currentRow = 1;
 
-    // Shift all content down by 2 rows for the header
-    driverData.weeks.forEach((week, idx) => {
-      const startRow = getWeekStartRow(idx) + 2; // +2 for header rows
-      createWeekBlock(
-        worksheet,
-        week,
-        startRow,
-        idx === driverData.weeks.length - 1
-          ? {
-              ytdGross: driverData.ytdGross,
-              ytdNetPay: driverData.ytdNetPay,
-              ytdExpenses: driverData.ytdExpenses,
-            }
-          : undefined
-      );
-    });
+  for (let weekIdx = 0; weekIdx < MAX_WEEKS; weekIdx++) {
+    const weekNum = weekIdx + 1;
+
+    // Find matching week data or create empty template
+    const weekData = driverData.weeks.find((w) => w.weekNumber === weekNum) || {
+      weekNumber: weekNum,
+      weekStart: getWeekStartDate(2026, weekNum),
+      weekEnd: getWeekEndDate(2026, weekNum),
+      loads: [],
+      expenses: {
+        factoring: 0,
+        dispatch: 0,
+        fuel: 0,
+        maintenance: 0,
+        tollsViolations: 0,
+        insurance: 0,
+        trailer: 0,
+        payback: 0,
+        eld: 0,
+        camera: 0,
+        driverPercent: 0,
+        advanced: 0,
+      },
+      brokerTotal: 0,
+      hasData: false,
+    };
+
+    // Include YTD data on the last week that has data, or on week 50
+    const isLastWeekWithData =
+      weekIdx === driverData.weeks.length - 1 || weekNum === MAX_WEEKS;
+
+    currentRow = createWeekBlock(
+      worksheet,
+      weekData,
+      currentRow,
+      isLastWeekWithData
+        ? {
+            ytdGross: driverData.ytdGross,
+            ytdNetPay: driverData.ytdNetPay,
+            ytdExpenses: driverData.ytdExpenses,
+          }
+        : undefined
+    );
   }
 
   return worksheet;
 }
 
+/**
+ * Get the start date of a week number in a given year
+ */
+function getWeekStartDate(year: number, weekNumber: number): Date {
+  const jan1 = new Date(year, 0, 1);
+  const daysToAdd = (weekNumber - 1) * 7;
+  return new Date(jan1.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
+}
+
+/**
+ * Get the end date of a week number in a given year
+ */
+function getWeekEndDate(year: number, weekNumber: number): Date {
+  const startDate = getWeekStartDate(year, weekNumber);
+  return new Date(startDate.getTime() + 6 * 24 * 60 * 60 * 1000);
+}
+
+/**
+ * Generate the full report XLSX with all drivers
+ */
 export async function generateReportXLSX(
   driversData: DriverSheetData[]
 ): Promise<Buffer> {
@@ -548,10 +573,40 @@ export async function generateReportXLSX(
   // Create SAMPLE sheet first
   createSampleSheet(workbook);
 
-  // Create a sheet for each driver
-  driversData.forEach((driverData) => {
+  // Create a sheet for each driver (sorted by truck number)
+  const sortedDrivers = [...driversData].sort((a, b) =>
+    a.truckNumber.localeCompare(b.truckNumber)
+  );
+
+  for (const driverData of sortedDrivers) {
     createDriverSheet(workbook, driverData);
-  });
+  }
+
+  // Generate buffer
+  const buffer = await workbook.xlsx.writeBuffer();
+  return Buffer.from(buffer);
+}
+
+/**
+ * Generate a delta export with only changed drivers
+ */
+export async function generateDeltaReportXLSX(
+  changedDriversData: DriverSheetData[]
+): Promise<Buffer> {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'Invoice App';
+  workbook.created = new Date();
+
+  // No SAMPLE sheet for delta exports
+
+  // Create a sheet for each changed driver
+  const sortedDrivers = [...changedDriversData].sort((a, b) =>
+    a.truckNumber.localeCompare(b.truckNumber)
+  );
+
+  for (const driverData of sortedDrivers) {
+    createDriverSheet(workbook, driverData);
+  }
 
   // Generate buffer
   const buffer = await workbook.xlsx.writeBuffer();

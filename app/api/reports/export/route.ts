@@ -4,10 +4,16 @@ import { getSessionUser, isSuperAdmin } from '@/lib/auth';
 import { calculateInvoiceTotals } from '@/lib/invoice-calculations';
 import {
   generateReportXLSX,
+  generateDeltaReportXLSX,
   type DriverSheetData,
   type WeekData,
   type ExpenseData,
+  type LoadData,
 } from '@/lib/xlsx-generator';
+import {
+  getTruckNumber,
+  validateTruckNumbers,
+} from '@/lib/truck-mapping';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,11 +36,17 @@ function mapDeductionToExpenseKey(deductionType: string): keyof ExpenseData | nu
   return null;
 }
 
+/**
+ * Get ISO week number for a date
+ */
 function getWeekNumber(date: Date): number {
-  const startOfYear = new Date(date.getFullYear(), 0, 1);
-  const diff = date.getTime() - startOfYear.getTime();
-  const oneWeek = 7 * 24 * 60 * 60 * 1000;
-  return Math.ceil((diff + startOfYear.getDay() * 24 * 60 * 60 * 1000) / oneWeek);
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  // Set to nearest Thursday (for ISO week calculation)
+  d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+  const yearStart = new Date(d.getFullYear(), 0, 1);
+  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return weekNo;
 }
 
 function createEmptyExpenses(): ExpenseData {
@@ -54,6 +66,21 @@ function createEmptyExpenses(): ExpenseData {
   };
 }
 
+function createEmptyYtdExpenses(): DriverSheetData['ytdExpenses'] {
+  return {
+    fuel: 0,
+    tolls: 0,
+    trailer: 0,
+    eld: 0,
+    camera: 0,
+    driverPercent: 0,
+    maintenance: 0,
+    insurance: 0,
+    payback: 0,
+    advanced: 0,
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getSessionUser();
@@ -63,6 +90,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const scope = searchParams.get('scope') || 'all';
+    const mode = searchParams.get('mode') || 'full'; // 'full' or 'changes'
     const companyIdParam = searchParams.get('companyId');
     const driverIdParam = searchParams.get('driverId');
     const dateFromParam = searchParams.get('dateFrom');
@@ -72,26 +100,6 @@ export async function GET(request: NextRequest) {
     const driverId = driverIdParam ? Number(driverIdParam) : null;
     const dateFrom = dateFromParam ? new Date(dateFromParam) : null;
     const dateTo = dateToParam ? new Date(dateToParam) : null;
-
-    // Build where clause for invoices
-    const invoiceWhere: any = {};
-
-    if (!isSuperAdmin(user)) {
-      invoiceWhere.company_id = user.company_id ?? -1;
-    } else if (scope === 'company' && companyId) {
-      invoiceWhere.company_id = companyId;
-    }
-
-    if (scope === 'driver' && driverId) {
-      invoiceWhere.driver_id = driverId;
-    }
-
-    if (dateFrom || dateTo) {
-      invoiceWhere.week_end = {
-        ...(dateFrom ? { gte: dateFrom } : {}),
-        ...(dateTo ? { lte: dateTo } : {}),
-      };
-    }
 
     // Build where clause for drivers
     const driverWhere: any = { status: 'active' };
@@ -106,39 +114,84 @@ export async function GET(request: NextRequest) {
       driverWhere.id = driverId;
     }
 
-    // Fetch drivers and their invoices
-    const [drivers, invoices] = await Promise.all([
-      prisma.driver.findMany({
-        where: driverWhere,
-        include: { company: true },
-        orderBy: { name: 'asc' },
-      }),
-      prisma.invoice.findMany({
-        where: invoiceWhere,
-        include: {
-          company: true,
-          driver: true,
-          loads: true,
-          deductions: true,
+    // Fetch all relevant drivers first
+    const drivers = await prisma.driver.findMany({
+      where: driverWhere,
+      include: { company: true },
+      orderBy: { name: 'asc' },
+    });
+
+    // ========== VALIDATION STEP ==========
+    const validation = validateTruckNumbers(drivers);
+
+    if (!validation.isValid) {
+      return NextResponse.json(
+        {
+          error: 'Truck number validation failed',
+          details: validation.errors,
+          warnings: validation.warnings,
         },
-        orderBy: [{ week_start: 'asc' }],
-      }),
-    ]);
+        { status: 400 }
+      );
+    }
+
+    // Log warnings but continue
+    if (validation.warnings.length > 0) {
+      console.warn('Export warnings:', validation.warnings);
+    }
+
+    // Build where clause for invoices
+    const invoiceWhere: any = {
+      driver_id: { in: drivers.map((d) => d.id) },
+    };
+
+    if (dateFrom || dateTo) {
+      invoiceWhere.week_end = {
+        ...(dateFrom ? { gte: dateFrom } : {}),
+        ...(dateTo ? { lte: dateTo } : {}),
+      };
+    }
+
+    // For delta mode, get last export time and filter by updated_at
+    let lastExportTime: Date | null = null;
+    if (mode === 'changes') {
+      const lastExport = await prisma.exportLog.findFirst({
+        where: {
+          company_id: companyId || (isSuperAdmin(user) ? undefined : user.company_id),
+        },
+        orderBy: { exported_at: 'desc' },
+      });
+
+      if (lastExport) {
+        lastExportTime = lastExport.exported_at;
+        invoiceWhere.updated_at = { gt: lastExportTime };
+      }
+    }
+
+    // Fetch invoices with all related data
+    const invoices = await prisma.invoice.findMany({
+      where: invoiceWhere,
+      include: {
+        company: true,
+        driver: true,
+        loads: true,
+        deductions: true,
+      },
+      orderBy: [{ week_start: 'asc' }],
+    });
 
     // Get YTD invoices (from Jan 1 of current year)
     const currentYear = dateTo ? dateTo.getFullYear() : new Date().getFullYear();
     const yearStart = new Date(currentYear, 0, 1);
 
-    const ytdInvoiceWhere: any = {
-      ...invoiceWhere,
-      week_end: {
-        gte: yearStart,
-        ...(dateTo ? { lte: dateTo } : {}),
-      },
-    };
-
     const ytdInvoices = await prisma.invoice.findMany({
-      where: ytdInvoiceWhere,
+      where: {
+        driver_id: { in: drivers.map((d) => d.id) },
+        week_end: {
+          gte: yearStart,
+          ...(dateTo ? { lte: dateTo } : {}),
+        },
+      },
       include: {
         loads: true,
         deductions: true,
@@ -154,7 +207,7 @@ export async function GET(request: NextRequest) {
       invoicesByDriver.set(invoice.driver_id, driverInvoices);
     });
 
-    // Group YTD invoices by driver
+    // Calculate YTD by driver
     const ytdByDriver = new Map<
       number,
       {
@@ -168,18 +221,7 @@ export async function GET(request: NextRequest) {
       const current = ytdByDriver.get(invoice.driver_id) || {
         ytdGross: 0,
         ytdNetPay: 0,
-        ytdExpenses: {
-          fuel: 0,
-          tolls: 0,
-          trailer: 0,
-          eld: 0,
-          camera: 0,
-          driverPercent: 0,
-          maintenance: 0,
-          insurance: 0,
-          payback: 0,
-          advanced: 0,
-        },
+        ytdExpenses: createEmptyYtdExpenses(),
       };
 
       const totals = calculateInvoiceTotals({
@@ -213,28 +255,32 @@ export async function GET(request: NextRequest) {
       ytdByDriver.set(invoice.driver_id, current);
     });
 
+    // For delta mode, only include drivers with changes
+    const driversToExport = mode === 'changes'
+      ? drivers.filter((d) => invoicesByDriver.has(d.id))
+      : drivers;
+
+    if (mode === 'changes' && driversToExport.length === 0) {
+      return NextResponse.json(
+        { message: 'No changes since last export' },
+        { status: 200 }
+      );
+    }
+
     // Build driver sheet data
-    const driversData: DriverSheetData[] = drivers.map((driver) => {
+    const driversData: DriverSheetData[] = driversToExport.map((driver) => {
       const driverInvoices = invoicesByDriver.get(driver.id) || [];
       const ytdData = ytdByDriver.get(driver.id) || {
         ytdGross: 0,
         ytdNetPay: 0,
-        ytdExpenses: {
-          fuel: 0,
-          tolls: 0,
-          trailer: 0,
-          eld: 0,
-          camera: 0,
-          driverPercent: 0,
-          maintenance: 0,
-          insurance: 0,
-          payback: 0,
-          advanced: 0,
-        },
+        ytdExpenses: createEmptyYtdExpenses(),
       };
 
+      // Get truck number from mapping (preserves leading zeros)
+      const truckNumber = getTruckNumber(driver.name, driver.id, driver.truck_number);
+
       // Convert invoices to week data
-      const weeks: WeekData[] = driverInvoices.map((invoice, idx) => {
+      const weeks: WeekData[] = driverInvoices.map((invoice) => {
         const expenses = createEmptyExpenses();
 
         // Map deductions to expense categories
@@ -255,13 +301,13 @@ export async function GET(request: NextRequest) {
         });
         expenses.driverPercent = totals.percentAmount;
 
-        // Map loads
-        const loads = invoice.loads.map((load) => ({
+        // Map loads with REAL data
+        const loads: LoadData[] = invoice.loads.map((load) => ({
           loadRef: load.load_ref,
-          vendor: '', // Will need to add vendor field to InvoiceLoad
-          driver: driver.name,
-          puDate: load.load_date,
-          delDate: null, // Will need to add delivery_date field
+          vendor: '', // TODO: Add vendor field to InvoiceLoad model
+          driverName: driver.name,
+          puDate: load.load_date, // Using load_date as pickup date
+          delDate: null, // TODO: Add delivery_date field to InvoiceLoad model
           fromState: load.from_location,
           toState: load.to_location,
           rate: load.amount,
@@ -274,12 +320,14 @@ export async function GET(request: NextRequest) {
           loads,
           expenses,
           brokerTotal: totals.gross,
+          hasData: true,
         };
       });
 
       return {
+        driverId: driver.id,
         driverName: driver.name,
-        truckNumber: driver.truck_number || `TRK ${driver.id.toString().padStart(3, '0')}`,
+        truckNumber, // String - preserves leading zeros like "TRK 007"
         companyName: driver.company?.name || 'Unknown',
         weeks,
         ytdGross: ytdData.ytdGross,
@@ -289,11 +337,25 @@ export async function GET(request: NextRequest) {
     });
 
     // Generate XLSX
-    const xlsxBuffer = await generateReportXLSX(driversData);
+    const xlsxBuffer = mode === 'changes'
+      ? await generateDeltaReportXLSX(driversData)
+      : await generateReportXLSX(driversData);
+
+    // Log export
+    await prisma.exportLog.create({
+      data: {
+        user_id: user.id,
+        company_id: companyId || user.company_id,
+        export_type: mode,
+        scope,
+        driver_ids: JSON.stringify(driversToExport.map((d) => d.id)),
+      },
+    });
 
     // Create filename
     const dateStr = new Date().toISOString().split('T')[0];
-    const filename = `settlement-report-${dateStr}.xlsx`;
+    const modeStr = mode === 'changes' ? '-delta' : '';
+    const filename = `settlement-report${modeStr}-${dateStr}.xlsx`;
 
     // Return file response
     return new NextResponse(new Uint8Array(xlsxBuffer), {
@@ -302,12 +364,13 @@ export async function GET(request: NextRequest) {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename="${filename}"`,
         'Cache-Control': 'no-cache',
+        'X-Export-Warnings': validation.warnings.length > 0 ? validation.warnings.join('; ') : '',
       },
     });
   } catch (error) {
     console.error('Export error:', error);
     return NextResponse.json(
-      { error: 'Failed to generate export' },
+      { error: 'Failed to generate export', details: String(error) },
       { status: 500 }
     );
   }
