@@ -674,7 +674,6 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                 <thead className="bg-zinc-800/50">
                     <tr>
                         <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">Date PU *</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">Date DEL</th>
                         <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">Load</th>
                         <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">From (ST)</th>
                         <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">To (ST)</th>
@@ -695,13 +694,6 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                                 {errors.loads?.[index]?.load_date?.message ? (
                                     <p className="mt-1 text-xs text-red-400">{errors.loads[index]?.load_date?.message}</p>
                                 ) : null}
-                            </td>
-                            <td className="px-2 py-2">
-                                <input
-                                    type="date"
-                                    {...register(`loads.${index}.delivery_date` as const)}
-                                    className="block w-full border-zinc-700 bg-zinc-800 text-white rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a67e7] border p-2 sm:text-sm"
-                                />
                             </td>
                             <td className="px-2 py-2"><input type="text" {...register(`loads.${index}.load_ref` as const)} className="block w-full border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a67e7] border p-2 sm:text-sm" placeholder="Load #" /></td>
                             <td className="px-2 py-2">
