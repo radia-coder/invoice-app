@@ -45,7 +45,6 @@ interface LoadItem {
   from_location: string;
   to_location: string;
   load_date: string;
-  delivery_date?: string | null;
   amount: number | string;
 }
 
@@ -92,7 +91,6 @@ interface Invoice {
     from_location: string;
     to_location: string;
     load_date: Date | string;
-    delivery_date?: Date | string | null;
     amount: number;
   }>;
   deductions: Array<{
@@ -148,7 +146,6 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
             from_location: l.from_location,
             to_location: l.to_location,
             load_date: formatDate(l.load_date),
-            delivery_date: formatDate(l.delivery_date || ''),
             amount: l.amount
         })),
         deductions: initialData.deductions.map((d) => ({
@@ -168,7 +165,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
       status: 'draft',
       due_date: '',
       notes: '',
-      loads: [{ load_ref: '', vendor: '', from_location: '', to_location: '', load_date: '', delivery_date: '', amount: 0 }],
+      loads: [{ load_ref: '', vendor: '', from_location: '', to_location: '', load_date: '', amount: 0 }],
       deductions: []
     }
   });
@@ -367,7 +364,6 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
         from_location: normalizeLocation(l.from_location),
         to_location: normalizeLocation(l.to_location),
         load_date: l.load_date,
-        delivery_date: l.delivery_date || null,
         amount: parseFloat(l.amount.toString())
       }));
 
@@ -665,7 +661,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
       <div className="border-t border-zinc-800 pt-6">
         <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-medium leading-6 text-white">Loads</h3>
-            <button type="button" onClick={() => appendLoad({ load_ref: '', vendor: '', from_location: '', to_location: '', load_date: '', delivery_date: '', amount: 0 })} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-[#7a67e7] bg-[#7a67e7]/10 hover:bg-[#7a67e7]/20 transition-colors">
+            <button type="button" onClick={() => appendLoad({ load_ref: '', vendor: '', from_location: '', to_location: '', load_date: '', amount: 0 })} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-[#7a67e7] bg-[#7a67e7]/10 hover:bg-[#7a67e7]/20 transition-colors">
                 <Plus className="w-4 h-4 mr-1" /> Add Load
             </button>
         </div>
@@ -674,7 +670,6 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                 <thead className="bg-zinc-800/50">
                     <tr>
                         <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">Date PU *</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">Date PU</th>
                         <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">Load</th>
                         <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">From (ST)</th>
                         <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">To (ST)</th>
@@ -695,13 +690,6 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                                 {errors.loads?.[index]?.load_date?.message ? (
                                     <p className="mt-1 text-xs text-red-400">{errors.loads[index]?.load_date?.message}</p>
                                 ) : null}
-                            </td>
-                            <td className="px-2 py-2">
-                                <input
-                                    type="date"
-                                    {...register(`loads.${index}.delivery_date` as const)}
-                                    className="block w-full border-zinc-700 bg-zinc-800 text-white rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a67e7] border p-2 sm:text-sm"
-                                />
                             </td>
                             <td className="px-2 py-2"><input type="text" {...register(`loads.${index}.load_ref` as const)} className="block w-full border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a67e7] border p-2 sm:text-sm" placeholder="Load #" /></td>
                             <td className="px-2 py-2">
