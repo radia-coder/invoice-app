@@ -633,10 +633,10 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Create filename - format: "OP Exp Weyrah 2026.xlsx"
+    // Create filename - format: "OP Exp 2026.xlsx"
     const year = new Date().getFullYear();
     const modeStr = mode === 'changes' ? ' Delta' : '';
-    const filename = `OP Exp Weyrah ${year}${modeStr}.xlsx`;
+    const filename = `OP Exp ${year}${modeStr}.xlsx`;
 
     // Return file response
     const rawWarnings = warnings.join('; ');
