@@ -152,12 +152,14 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
           delivery_date: formatDate(l.delivery_date || ''),
           amount: l.amount
         })),
-        deductions: initialData.deductions.map((d) => ({
-          deduction_type: d.deduction_type,
-          amount: d.amount,
-          note: d.note || '',
-          deduction_date: formatDate(d.deduction_date || '')
-        }))
+        deductions: initialData.deductions
+          .filter((d) => d.deduction_type.trim().toLowerCase() !== 'date del')
+          .map((d) => ({
+            deduction_type: d.deduction_type,
+            amount: d.amount,
+            note: d.note || '',
+            deduction_date: formatDate(d.deduction_date || '')
+          }))
       };
     }
 
@@ -220,6 +222,9 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
   const watchedTaxPercent = watch('tax_percent');
   const watchedLoads = watch('loads');
   const watchedDeductions = watch('deductions');
+  const visibleDeductionTypes = deductionTypes.filter(
+    (type) => type.name.trim().toLowerCase() !== 'date del'
+  );
 
   // Fetch deduction types (initially and when company changes)
   const fetchDeductionTypes = async (companyId?: string | number) => {
@@ -406,12 +411,14 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
         tax_percent: parseFloat(data.tax_percent.toString()),
         currency: 'USD',
         loads: transformedLoads,
-        deductions: data.deductions.map((d: DeductionItem) => ({
-          deduction_type: d.deduction_type,
-          amount: parseFloat(d.amount.toString()),
-          note: d.note || null,
-          deduction_date: d.deduction_date || null
-        }))
+        deductions: data.deductions
+          .filter((d: DeductionItem) => d.deduction_type.trim().toLowerCase() !== 'date del')
+          .map((d: DeductionItem) => ({
+            deduction_type: d.deduction_type,
+            amount: parseFloat(d.amount.toString()),
+            note: d.note || null,
+            deduction_date: d.deduction_date || null
+          }))
       };
 
       const url = initialData ? `/api/invoices/${initialData.id}` : '/api/invoices';
@@ -701,6 +708,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                 <thead className="bg-zinc-800/50">
                     <tr>
                         <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">Date PU *</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">Date DEL</th>
                         <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">Load</th>
                         <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">From (ST)</th>
                         <th className="px-3 py-3 text-left text-xs font-medium text-zinc-400 uppercase">To (ST)</th>
@@ -713,7 +721,6 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                         <tr key={field.id} className="hover:bg-zinc-800/30">
                             <td className="px-2 py-2">
                                 <input type="hidden" {...register(`loads.${index}.vendor` as const)} />
-                                <input type="hidden" {...register(`loads.${index}.delivery_date` as const)} />
                                 <input
                                     type="date"
                                     {...register(`loads.${index}.load_date` as const, { required: 'Date PU is required' })}
@@ -722,6 +729,13 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                                 {errors.loads?.[index]?.load_date?.message ? (
                                     <p className="mt-1 text-xs text-red-400">{errors.loads[index]?.load_date?.message}</p>
                                 ) : null}
+                            </td>
+                            <td className="px-2 py-2">
+                                <input
+                                    type="date"
+                                    {...register(`loads.${index}.delivery_date` as const)}
+                                    className="block w-full border-zinc-700 bg-zinc-800 text-white rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a67e7] border p-2 sm:text-sm"
+                                />
                             </td>
                             <td className="px-2 py-2"><input type="text" {...register(`loads.${index}.load_ref` as const)} className="block w-full border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm focus:ring-2 focus:ring-[#7a67e7] border p-2 sm:text-sm" placeholder="Load #" /></td>
                             <td className="px-2 py-2">
@@ -788,7 +802,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
             <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-medium leading-6 text-white">Fixed Deductions</h3>
                 <div className="flex gap-2">
-                    <button type="button" onClick={() => appendDeduction({ deduction_type: deductionTypes[0]?.name || 'Other', amount: 0, note: '', deduction_date: '' })} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-[#7a67e7] bg-[#7a67e7]/10 hover:bg-[#7a67e7]/20 transition-colors">
+                    <button type="button" onClick={() => appendDeduction({ deduction_type: visibleDeductionTypes[0]?.name || 'Other', amount: 0, note: '', deduction_date: '' })} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-[#7a67e7] bg-[#7a67e7]/10 hover:bg-[#7a67e7]/20 transition-colors">
                         <Plus className="w-4 h-4 mr-1" /> Add
                     </button>
                     <button type="button" onClick={() => setShowNewTypeInput(true)} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-[#7a67e7] bg-[#7a67e7]/10 hover:bg-[#7a67e7]/20 transition-colors">
@@ -880,15 +894,11 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
             ) : null}
 
             <div className="space-y-2">
-                {deductionFields.map((field, index) => {
-                    const selectedType = watchedDeductions[index]?.deduction_type || '';
-                    const isDateDel = selectedType.toLowerCase() === 'date del';
-                    return (
+                {deductionFields.map((field, index) => (
                     <div key={field.id} className="flex gap-2 items-start">
                         <select {...register(`deductions.${index}.deduction_type` as const)} className="block w-[140px] flex-none border-zinc-700 bg-zinc-800 text-white rounded-lg shadow-sm border p-2.5 sm:text-sm">
-                            <option value="Date del">Date del</option>
-                            {deductionTypes.length > 0 ? (
-                              deductionTypes.map(dt => (
+                            {visibleDeductionTypes.length > 0 ? (
+                              visibleDeductionTypes.map(dt => (
                                 <option key={dt.id} value={dt.name}>{dt.name}</option>
                               ))
                             ) : (
@@ -901,15 +911,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                               </>
                             )}
                         </select>
-                        {isDateDel ? (
-                          <input
-                            type="date"
-                            {...register(`deductions.${index}.deduction_date` as const)}
-                            className="block w-[140px] flex-none border-zinc-700 bg-zinc-800 text-white rounded-lg shadow-sm border p-2.5 sm:text-sm"
-                          />
-                        ) : (
-                          <input type="number" step="0.01" {...register(`deductions.${index}.amount` as const)} placeholder="Amount" className="block w-[100px] flex-none border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm border p-2.5 sm:text-sm" />
-                        )}
+                        <input type="number" step="0.01" {...register(`deductions.${index}.amount` as const)} placeholder="Amount" className="block w-[100px] flex-none border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm border p-2.5 sm:text-sm" />
                         <input type="text" {...register(`deductions.${index}.note` as const)} placeholder="Note" className="block flex-1 min-w-[80px] border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm border p-2.5 sm:text-sm" />
                         <button
                           type="button"
@@ -920,8 +922,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                           <Trash className="w-4 h-4" />
                         </button>
                     </div>
-                    );
-                })}
+                ))}
             </div>
           </div>
 
