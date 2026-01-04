@@ -39,7 +39,7 @@ test('driver sheet has 50 week blocks and no Week label column', async () => {
   assert.ok(sheet);
 
   const week1Cell = sheet.getCell(1, 1).value;
-  const week50Row = 1 + (50 - 1) * 25;
+  const week50Row = 1 + (50 - 1) * 24;
   const week50Cell = sheet.getCell(week50Row, 1).value;
   const inputLabelColumn = sheet.getColumn(12);
   const inputValueColumn = sheet.getColumn(13);
