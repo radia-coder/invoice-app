@@ -141,7 +141,9 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
       </tr>
     `).join('');
 
-  const deductionsRows = data.deductions.map(d => `
+  const deductionsRows = data.deductions
+    .filter((d) => d.deduction_type.trim().toLowerCase() !== 'date del')
+    .map(d => `
     <div class="flex justify-between text-sm text-gray-600">
         <span>${escapeHtml(d.deduction_type)} ${d.note ? `(${escapeHtml(d.note)})` : ''}</span>
         <span class="text-red-600">- ${formatCurrency(d.amount, currency)}</span>

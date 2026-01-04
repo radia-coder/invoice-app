@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm, useFieldArray, Controller, type FieldErrors } from 'react-hook-form';
 import { Plus, Trash, Save, Eye, EyeOff } from 'lucide-react';
 import { InvoiceTemplate } from './InvoiceTemplate';
@@ -129,8 +129,9 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
       return new Date(d).toISOString().split('T')[0];
   }
 
-  const { register, control, handleSubmit, watch, setValue, setError, clearErrors, trigger, formState: { errors } } = useForm<InvoiceFormData>({
-    defaultValues: initialData ? {
+  const initialValues = useMemo<InvoiceFormData>(() => {
+    if (initialData) {
+      return {
         company_id: initialData.company_id.toString(),
         driver_id: initialData.driver_id.toString(),
         week_start: formatDate(initialData.week_start),
@@ -143,21 +144,24 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
         notes: initialData.notes || '',
         invoice_number: initialData.invoice_number,
         loads: initialData.loads.map((l) => ({
-            load_ref: l.load_ref || '',
-            vendor: l.vendor || '',
-            from_location: l.from_location,
-            to_location: l.to_location,
-            load_date: formatDate(l.load_date),
-            delivery_date: formatDate(l.delivery_date || ''),
-            amount: l.amount
+          load_ref: l.load_ref || '',
+          vendor: l.vendor || '',
+          from_location: l.from_location,
+          to_location: l.to_location,
+          load_date: formatDate(l.load_date),
+          delivery_date: formatDate(l.delivery_date || ''),
+          amount: l.amount
         })),
         deductions: initialData.deductions.map((d) => ({
-            deduction_type: d.deduction_type,
-            amount: d.amount,
-            note: d.note || '',
-            deduction_date: formatDate(d.deduction_date || '')
+          deduction_type: d.deduction_type,
+          amount: d.amount,
+          note: d.note || '',
+          deduction_date: formatDate(d.deduction_date || '')
         }))
-    } : {
+      };
+    }
+
+    return {
       company_id: '',
       driver_id: '',
       week_start: '',
@@ -170,8 +174,31 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
       notes: '',
       loads: [{ load_ref: '', vendor: '', from_location: '', to_location: '', load_date: '', delivery_date: '', amount: 0 }],
       deductions: []
-    }
+    };
+  }, [initialData]);
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    watch,
+    setValue,
+    setError,
+    clearErrors,
+    trigger,
+    reset,
+    formState: { errors }
+  } = useForm<InvoiceFormData>({
+    defaultValues: initialValues
   });
+
+  const didInitialize = useRef(false);
+
+  useEffect(() => {
+    if (!initialData || didInitialize.current) return;
+    reset(initialValues);
+    didInitialize.current = true;
+  }, [initialData, initialValues, reset]);
 
   const { fields: loadFields, append: appendLoad, remove: removeLoad } = useFieldArray({
     control,
@@ -686,6 +713,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                         <tr key={field.id} className="hover:bg-zinc-800/30">
                             <td className="px-2 py-2">
                                 <input type="hidden" {...register(`loads.${index}.vendor` as const)} />
+                                <input type="hidden" {...register(`loads.${index}.delivery_date` as const)} />
                                 <input
                                     type="date"
                                     {...register(`loads.${index}.load_date` as const, { required: 'Date PU is required' })}
