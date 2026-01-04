@@ -24,6 +24,8 @@ function buildDriverData(id: number, truckNumber: string, sheetName?: string): D
       insurance: 0,
       payback: 0,
       advanced: 0,
+      parts: 0,
+      dispatch: 0,
     },
   };
 }
@@ -37,13 +39,15 @@ test('driver sheet has 50 week blocks and no Week label column', async () => {
   assert.ok(sheet);
 
   const week1Cell = sheet.getCell(1, 1).value;
-  const week50Row = 1 + (50 - 1) * 18;
+  const week50Row = 1 + (50 - 1) * 25;
   const week50Cell = sheet.getCell(week50Row, 1).value;
-  const weekInfoCell = sheet.getCell(1, 12).value;
+  const inputLabelColumn = sheet.getColumn(12);
+  const inputValueColumn = sheet.getColumn(13);
 
   assert.equal(week1Cell, 'WEEK 1');
   assert.equal(week50Cell, 'WEEK 50');
-  assert.equal(weekInfoCell ?? '', '');
+  assert.equal(inputLabelColumn.hidden, true);
+  assert.equal(inputValueColumn.hidden, true);
 });
 
 test('driver sheet uses truck number as tab name by default', async () => {

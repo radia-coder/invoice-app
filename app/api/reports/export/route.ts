@@ -518,6 +518,7 @@ export async function GET(request: NextRequest) {
           loads,
           expenses,
           driverPercentRate: invoice.percent,
+          otherIncome: 0,
           brokerTotal: totals.gross,
           hasData: true,
         };

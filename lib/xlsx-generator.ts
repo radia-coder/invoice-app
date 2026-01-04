@@ -36,6 +36,7 @@ interface WeekData {
   loads: LoadData[];
   expenses: ExpenseData;
   driverPercentRate: number;
+  otherIncome: number;
   brokerTotal: number;
   hasData: boolean; // Whether this week has actual invoice data
 }
@@ -88,6 +89,8 @@ const COLORS = {
 
 const MAX_EXPENSE_ROWS = 13;
 const YTD_SUMMARY_ROWS = 6;
+const INPUT_LABEL_COLUMN = 12;
+const INPUT_VALUE_COLUMN = 13;
 // Each week block is exactly 25 rows (no gaps between weeks)
 const ROWS_PER_WEEK = 1 + MAX_EXPENSE_ROWS + 5 + YTD_SUMMARY_ROWS;
 const MAX_WEEKS = 50;
@@ -154,6 +157,17 @@ function formatPercentValue(value: number | null | undefined): string {
   return Number.isInteger(normalized) ? normalized.toFixed(0) : normalized.toString();
 }
 
+function getColumnLetter(columnNumber: number): string {
+  let value = columnNumber;
+  let letters = '';
+  while (value > 0) {
+    const remainder = (value - 1) % 26;
+    letters = String.fromCharCode(65 + remainder) + letters;
+    value = Math.floor((value - 1) / 26);
+  }
+  return letters;
+}
+
 function setColumnWidths(worksheet: ExcelJS.Worksheet) {
   worksheet.getColumn('A').width = 12;
   worksheet.getColumn('B').width = 12;
@@ -166,6 +180,12 @@ function setColumnWidths(worksheet: ExcelJS.Worksheet) {
   worksheet.getColumn('I').width = 12;
   worksheet.getColumn('J').width = 18;
   worksheet.getColumn('K').width = 12;
+  const inputLabelColumn = worksheet.getColumn(INPUT_LABEL_COLUMN);
+  inputLabelColumn.width = 16;
+  inputLabelColumn.hidden = true;
+  const inputValueColumn = worksheet.getColumn(INPUT_VALUE_COLUMN);
+  inputValueColumn.width = 14;
+  inputValueColumn.hidden = true;
 }
 
 /**
@@ -227,9 +247,60 @@ function createWeekBlock(
     bold: true,
   });
 
-  // ===== EXPENSE LABELS AND AMOUNTS (J2:K13) =====
-  const driverPercentLabel = `DRIVER ${formatPercentValue(weekData.driverPercentRate)}%`;
+  const inputLabelColumnLetter = getColumnLetter(INPUT_LABEL_COLUMN);
+  const inputValueColumnLetter = getColumnLetter(INPUT_VALUE_COLUMN);
 
+  const inputWeekStartRow = r + 1;
+  const inputWeekEndRow = r + 2;
+  const inputDriverPercentRow = r + 3;
+  const inputOtherIncomeRow = r + 4;
+
+  const weekStartCellRef = `${inputValueColumnLetter}${inputWeekStartRow}`;
+  const weekEndCellRef = `${inputValueColumnLetter}${inputWeekEndRow}`;
+  const driverPercentCellRef = `${inputValueColumnLetter}${inputDriverPercentRow}`;
+  const otherIncomeCellRef = `${inputValueColumnLetter}${inputOtherIncomeRow}`;
+
+  const inputCells = [
+    {
+      row: inputWeekStartRow,
+      label: 'Week Start',
+      value: weekData.weekStart,
+      numFmt: 'mm/dd/yy',
+    },
+    {
+      row: inputWeekEndRow,
+      label: 'Week End',
+      value: weekData.weekEnd,
+      numFmt: 'mm/dd/yy',
+    },
+    {
+      row: inputDriverPercentRow,
+      label: 'Driver %',
+      value: (weekData.driverPercentRate || 0) / 100,
+      numFmt: '0%',
+    },
+    {
+      row: inputOtherIncomeRow,
+      label: 'Other Income',
+      value: weekData.otherIncome || 0,
+      numFmt: '"$"#,##0.00',
+    },
+  ];
+
+  for (const input of inputCells) {
+    const labelCell = worksheet.getCell(input.row, INPUT_LABEL_COLUMN);
+    labelCell.value = input.label;
+
+    const valueCell = worksheet.getCell(input.row, INPUT_VALUE_COLUMN);
+    valueCell.value = input.value;
+    setCellStyle(valueCell, {
+      numFmt: input.numFmt,
+      align: 'left',
+      valign: 'middle',
+    });
+  }
+
+  // ===== EXPENSE LABELS AND AMOUNTS (J2:K13) =====
   const expenseLabels = [
     'FACTORING',
     'DISPATCH',
@@ -242,7 +313,7 @@ function createWeekBlock(
     'PAYBACK',
     'ELD',
     'CAMERA',
-    driverPercentLabel,
+    'DRIVER %',
     'ADVANCED',
   ];
 
@@ -261,6 +332,20 @@ function createWeekBlock(
     weekData.expenses.driverPercent,
     weekData.expenses.advanced,
   ];
+
+  const factoringRow = r + 1;
+  const dispatchRow = r + 2;
+  const fuelRow = r + 3;
+  const maintenanceRow = r + 4;
+  const tollsRow = r + 5;
+  const insuranceRow = r + 6;
+  const trailerRow = r + 7;
+  const partsRow = r + 8;
+  const paybackRow = r + 9;
+  const eldRow = r + 10;
+  const cameraRow = r + 11;
+  const driverRow = r + 12;
+  const advancedRow = r + 13;
 
   for (let idx = 0; idx < MAX_EXPENSE_ROWS; idx++) {
     const expenseRow = r + 1 + idx;
@@ -284,6 +369,27 @@ function createWeekBlock(
       numFmt: '"$"#,##0.00',
     });
   }
+
+  const brokerTotalsRef = `I${r + 8}`;
+  const driverPercentDisplay = `DRIVER ${formatPercentValue(weekData.driverPercentRate)}%`;
+
+  const factoringCell = worksheet.getCell(factoringRow, 11);
+  factoringCell.value = { formula: `${brokerTotalsRef}*0.02`, result: weekData.expenses.factoring };
+
+  const dispatchCell = worksheet.getCell(dispatchRow, 11);
+  dispatchCell.value = { formula: `${brokerTotalsRef}*0.10`, result: weekData.expenses.dispatch };
+
+  const driverAmountCell = worksheet.getCell(driverRow, 11);
+  driverAmountCell.value = {
+    formula: `${brokerTotalsRef}*${driverPercentCellRef}`,
+    result: weekData.expenses.driverPercent,
+  };
+
+  const driverLabelCell = worksheet.getCell(driverRow, 10);
+  driverLabelCell.value = {
+    formula: `="DRIVER " & TEXT(${driverPercentCellRef},"0%")`,
+    result: driverPercentDisplay,
+  };
 
   // ===== ROWS 3-8: LOAD LABELS (A3-A8) and LOAD DATA (B3-H8, I3-I8) =====
   for (let i = 0; i < MAX_LOADS_PER_WEEK; i++) {
@@ -367,7 +473,7 @@ function createWeekBlock(
   });
 
   const totalOweAmountCell = worksheet.getCell(totalOweRow, 11); // K14
-  totalOweAmountCell.value = { formula: `SUM(K${r + 1}:K${r + MAX_EXPENSE_ROWS})` };
+  totalOweAmountCell.value = { formula: `MAX(0,-K${totalOweRow + 2})` };
   setCellStyle(totalOweAmountCell, {
     bgColor: COLORS.red,
     fontColor: COLORS.white,
@@ -386,7 +492,7 @@ function createWeekBlock(
   });
 
   const weeklyGrossAmountCell = worksheet.getCell(weeklyGrossRow, 11); // K15
-  weeklyGrossAmountCell.value = { formula: `I${totalsRow}` };
+  weeklyGrossAmountCell.value = { formula: `${brokerTotalsRef}+${otherIncomeCellRef}` };
   setCellStyle(weeklyGrossAmountCell, {
     bgColor: COLORS.black,
     fontColor: COLORS.neonGreen,
@@ -405,7 +511,9 @@ function createWeekBlock(
   });
 
   const weeklyNetAmountCell = worksheet.getCell(weeklyNetRow, 11); // K16
-  weeklyNetAmountCell.value = { formula: `K${weeklyGrossRow}-K${totalOweRow}` };
+  weeklyNetAmountCell.value = {
+    formula: `K${weeklyGrossRow}-SUM(K${factoringRow}:K${driverRow})-K${advancedRow}`,
+  };
   setCellStyle(weeklyNetAmountCell, {
     bgColor: COLORS.darkGray,
     fontColor: COLORS.brightGreen,
@@ -424,7 +532,9 @@ function createWeekBlock(
   });
 
   const ytdGrossAmountCell = worksheet.getCell(ytdGrossRow, 11); // K17
-  ytdGrossAmountCell.value = ytdData?.ytdGross || 0;
+  ytdGrossAmountCell.value = weekData.weekNumber === 1
+    ? { formula: `K${weeklyGrossRow}`, result: ytdData?.ytdGross || 0 }
+    : { formula: `K${weeklyGrossRow}+K${ytdGrossRow - ROWS_PER_WEEK}`, result: ytdData?.ytdGross || 0 };
   setCellStyle(ytdGrossAmountCell, {
     bgColor: COLORS.gold,
     fontColor: COLORS.black,
@@ -443,7 +553,9 @@ function createWeekBlock(
   });
 
   const ytdNetAmountCell = worksheet.getCell(ytdNetRow, 11); // K18
-  ytdNetAmountCell.value = ytdData?.ytdNetPay || 0;
+  ytdNetAmountCell.value = weekData.weekNumber === 1
+    ? { formula: `K${weeklyNetRow}`, result: ytdData?.ytdNetPay || 0 }
+    : { formula: `K${weeklyNetRow}+K${ytdNetRow - ROWS_PER_WEEK}`, result: ytdData?.ytdNetPay || 0 };
   setCellStyle(ytdNetAmountCell, {
     bgColor: COLORS.lightBlue,
     fontColor: COLORS.black,
@@ -453,49 +565,51 @@ function createWeekBlock(
 
   // ===== YTD SUMMARY ROWS =====
   const ytdSummaryStartRow = ytdNetRow + 1;
+  const isFirstWeek = weekData.weekNumber === 1;
   const ytdDriverLabel = `YTD DRIVER ${formatPercentValue(weekData.driverPercentRate)}%`;
   const ytdExpenses = ytdData?.ytdExpenses;
 
   const ytdLeftRows = [
-    { label: 'YTD FUEL', value: ytdExpenses?.fuel || 0 },
-    { label: 'YTD TOLLS', value: ytdExpenses?.tolls || 0 },
-    { label: 'YTD TRAILER', value: ytdExpenses?.trailer || 0 },
-    { label: 'YTD ELD', value: ytdExpenses?.eld || 0 },
-    { label: 'YTD CAMERA', value: ytdExpenses?.camera || 0 },
-    { label: ytdDriverLabel, value: ytdExpenses?.driverPercent || 0 },
+    { label: 'YTD FUEL', weeklyRef: `K${fuelRow}`, result: ytdExpenses?.fuel || 0 },
+    { label: 'YTD TOLLS', weeklyRef: `K${tollsRow}`, result: ytdExpenses?.tolls || 0 },
+    { label: 'YTD TRAILER', weeklyRef: `K${trailerRow}`, result: ytdExpenses?.trailer || 0 },
+    { label: 'YTD ELD', weeklyRef: `K${eldRow}`, result: ytdExpenses?.eld || 0 },
+    { label: 'YTD CAMERA', weeklyRef: `K${cameraRow}`, result: ytdExpenses?.camera || 0 },
+    {
+      labelFormula: `="YTD DRIVER " & TEXT(${driverPercentCellRef},"0%")`,
+      labelResult: ytdDriverLabel,
+      weeklyRef: `K${driverRow}`,
+      result: ytdExpenses?.driverPercent || 0,
+    },
   ];
 
   const ytdRightBaseRows = [
-    { label: 'YTD MAINTENANCE', value: ytdExpenses?.maintenance || 0 },
-    { label: 'YTD INSURANCE', value: ytdExpenses?.insurance || 0 },
-    { label: 'YTD Parts', value: ytdExpenses?.parts || 0 },
-    { label: 'YTD Dispatch', value: ytdExpenses?.dispatch || 0 },
+    { label: 'YTD MAINTENANCE', weeklyRef: `K${maintenanceRow}`, result: ytdExpenses?.maintenance || 0 },
+    { label: 'YTD INSURANCE', weeklyRef: `K${insuranceRow}`, result: ytdExpenses?.insurance || 0 },
+    { label: 'YTD Parts', weeklyRef: `K${partsRow}`, result: ytdExpenses?.parts || 0 },
+    { label: 'YTD Dispatch', weeklyRef: `K${dispatchRow}`, result: ytdExpenses?.dispatch || 0 },
   ];
 
-  const ytdTotalOwe = ytdLeftRows.reduce((sum, row) => sum + row.value, 0)
-    + ytdRightBaseRows.reduce((sum, row) => sum + row.value, 0);
-
-  const ytdRightRows = [
-    ...ytdRightBaseRows,
-    { label: 'YTD TOTAL OWE', value: ytdTotalOwe },
-  ];
-
-  const ytdSummaryRowCount = Math.max(ytdLeftRows.length, ytdRightRows.length);
+  const ytdSummaryRowCount = ytdLeftRows.length;
   for (let idx = 0; idx < ytdSummaryRowCount; idx++) {
     const summaryRow = ytdSummaryStartRow + idx;
     const leftRow = ytdLeftRows[idx];
-    const rightRow = ytdRightRows[idx];
 
     if (leftRow) {
       const leftLabelCell = worksheet.getCell(summaryRow, 8); // H column
-      leftLabelCell.value = leftRow.label;
+      leftLabelCell.value = leftRow.labelFormula
+        ? { formula: leftRow.labelFormula, result: leftRow.labelResult }
+        : leftRow.label;
       setCellStyle(leftLabelCell, {
         bgColor: COLORS.gray,
         bold: true,
       });
 
       const leftAmountCell = worksheet.getCell(summaryRow, 9); // I column
-      leftAmountCell.value = leftRow.value;
+      const prevLeftRef = `I${summaryRow - ROWS_PER_WEEK}`;
+      leftAmountCell.value = isFirstWeek
+        ? { formula: leftRow.weeklyRef, result: leftRow.result }
+        : { formula: `${prevLeftRef}+${leftRow.weeklyRef}`, result: leftRow.result };
       setCellStyle(leftAmountCell, {
         bgColor: COLORS.lightGray,
         bold: true,
@@ -503,26 +617,61 @@ function createWeekBlock(
       });
     }
 
-    if (rightRow) {
-      const isTotal = rightRow.label === 'YTD TOTAL OWE';
+    if (idx < ytdRightBaseRows.length) {
+      const rightRow = ytdRightBaseRows[idx];
       const rightLabelCell = worksheet.getCell(summaryRow, 10); // J column
       rightLabelCell.value = rightRow.label;
       setCellStyle(rightLabelCell, {
-        bgColor: isTotal ? COLORS.red : COLORS.gray,
-        fontColor: isTotal ? COLORS.white : COLORS.black,
+        bgColor: COLORS.gray,
         bold: true,
       });
 
       const rightAmountCell = worksheet.getCell(summaryRow, 11); // K column
-      rightAmountCell.value = rightRow.value;
+      const prevRightRef = `K${summaryRow - ROWS_PER_WEEK}`;
+      rightAmountCell.value = isFirstWeek
+        ? { formula: rightRow.weeklyRef, result: rightRow.result }
+        : { formula: `${prevRightRef}+${rightRow.weeklyRef}`, result: rightRow.result };
       setCellStyle(rightAmountCell, {
-        bgColor: isTotal ? COLORS.red : COLORS.lightGray,
-        fontColor: isTotal ? COLORS.white : COLORS.black,
+        bgColor: COLORS.lightGray,
+        bold: true,
+        numFmt: '"$"#,##0.00',
+      });
+    } else if (idx === ytdRightBaseRows.length) {
+      const totalLabelCell = worksheet.getCell(summaryRow, 10); // J column
+      totalLabelCell.value = 'YTD TOTAL OWE';
+      setCellStyle(totalLabelCell, {
+        bgColor: COLORS.red,
+        fontColor: COLORS.white,
+        bold: true,
+      });
+
+      const totalAmountCell = worksheet.getCell(summaryRow, 11); // K column
+      const leftSumEnd = ytdSummaryStartRow + YTD_SUMMARY_ROWS - 1;
+      const rightSumEnd = ytdSummaryStartRow + ytdRightBaseRows.length - 1;
+      totalAmountCell.value = {
+        formula: `SUM(I${ytdSummaryStartRow}:I${leftSumEnd})+SUM(K${ytdSummaryStartRow}:K${rightSumEnd})`,
+        result: 0,
+      };
+      setCellStyle(totalAmountCell, {
+        bgColor: COLORS.red,
+        fontColor: COLORS.white,
         bold: true,
         numFmt: '"$"#,##0.00',
       });
     }
   }
+
+  const weekLabelRow = ytdSummaryStartRow + YTD_SUMMARY_ROWS - 1;
+  worksheet.mergeCells(weekLabelRow, 2, weekLabelRow, 7);
+  const weekLabelCell = worksheet.getCell(weekLabelRow, 2);
+  weekLabelCell.value = {
+    formula: `TEXT(${weekStartCellRef},"mmm d") & " - " & TEXT(${weekEndCellRef},"mmm d")`,
+    result: `${format(new Date(weekData.weekStart), 'MMM d')} - ${format(new Date(weekData.weekEnd), 'MMM d')}`,
+  };
+  setCellStyle(weekLabelCell, {
+    align: 'center',
+    valign: 'middle',
+  });
 
   // Return next row (no gap - Week 2 starts immediately after Week 1)
   return r + ROWS_PER_WEEK;
@@ -557,6 +706,7 @@ function createSampleSheet(workbook: ExcelJS.Workbook) {
         advanced: 0,
       },
       driverPercentRate: 0,
+      otherIncome: 0,
       brokerTotal: 0,
       hasData: false,
     };
@@ -605,6 +755,7 @@ function createDriverSheet(
         advanced: 0,
       },
       driverPercentRate: 0,
+      otherIncome: 0,
       brokerTotal: 0,
       hasData: false,
     };

@@ -67,6 +67,7 @@ test('generateReportXLSX handles unicode cell data', async () => {
           ],
           expenses,
           driverPercentRate: 0,
+          otherIncome: 0,
           brokerTotal: 123,
           hasData: true,
         },
