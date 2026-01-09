@@ -60,18 +60,27 @@ export function buildAutoDeductionEntries(
   config: AutoDeductionConfig
 ): DeductionLike[] {
   const baseLabel = config.base === 'YTD_INSURANCE' ? 'YTD Insurance' : 'Base';
-  return [
-    {
+  const entries: DeductionLike[] = [];
+
+  // Only add factoring if amount is greater than 0
+  if (amounts.factoring > 0) {
+    entries.push({
       deduction_type: 'Factoring',
       amount: amounts.factoring,
       note: `${config.factoringPercent}% of ${baseLabel}`,
-    },
-    {
+    });
+  }
+
+  // Only add dispatch if amount is greater than 0
+  if (amounts.dispatch > 0) {
+    entries.push({
       deduction_type: 'Dispatch',
       amount: amounts.dispatch,
       note: `${config.dispatchPercent}% of ${baseLabel}`,
-    },
-  ];
+    });
+  }
+
+  return entries;
 }
 
 export function mergeDeductionsWithAuto(
