@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetFooter } from '@/components/ui/sheet';
 import { Button, buttonVariants } from '@/components/ui/button';
+import { UserMenu } from '@/components/ui/user-menu';
 import { cn } from '@/lib/utils';
 
 interface FloatingHeaderProps {
@@ -93,9 +94,7 @@ export function FloatingHeader({ userEmail, userRole }: FloatingHeaderProps) {
                 {/* Right Side */}
                 <div className="flex items-center gap-2 lg:justify-self-end">
                     {userEmail && (
-                        <span className="text-xs text-zinc-500 hidden md:block truncate max-w-[150px]">
-                            {userEmail}
-                        </span>
+                        <UserMenu name="User" email={userEmail} />
                     )}
 
                     {/* Desktop Logout */}
@@ -136,7 +135,7 @@ export function FloatingHeader({ userEmail, userRole }: FloatingHeaderProps) {
                                     />
                                 </div>
                                 {userEmail && (
-                                    <p className="text-xs text-zinc-500 truncate max-w-[180px]">{userEmail}</p>
+                                    <UserMenu name="User" email={userEmail} />
                                 )}
                             </div>
 
