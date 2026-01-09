@@ -141,9 +141,12 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
       </tr>
     `).join('');
 
-  const deductionsRows = data.deductions
-    .filter((d) => d.deduction_type.trim().toLowerCase() !== 'date del' && d.amount > 0)
-    .map(d => `
+  // Filter deductions to only include non-zero amounts
+  const nonZeroDeductions = data.deductions.filter(
+    (d) => d.deduction_type.trim().toLowerCase() !== 'date del' && d.amount > 0
+  );
+
+  const deductionsRows = nonZeroDeductions.map(d => `
     <div class="flex justify-between text-sm text-gray-600">
         <span>${escapeHtml(d.deduction_type)} ${d.note ? `(${escapeHtml(d.note)})` : ''}</span>
         <span class="text-red-600">- ${formatCurrency(d.amount, currency)}</span>
@@ -263,7 +266,7 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
             `}
 
             <!-- Fixed Deductions -->
-            ${data.deductions.length > 0 ? `
+            ${nonZeroDeductions.length > 0 ? `
                 <div class="border-t border-gray-200 pt-2 space-y-1">
                     ${deductionsRows}
                     <div class="flex justify-between font-medium text-gray-800 pt-1 border-t border-gray-100">
