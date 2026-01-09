@@ -61,6 +61,7 @@ export async function POST(request: Request) {
       tax_percent: body.tax_percent !== undefined ? Number(body.tax_percent) : 0,
       status: body.status || 'draft',
       currency: 'USD',
+      manual_net_pay: body.manual_net_pay !== undefined && body.manual_net_pay !== null ? Number(body.manual_net_pay) : undefined,
       loads: (body.loads || []).map((l: LoadInput) => ({
         ...l,
         amount: Number(l.amount)
@@ -79,20 +80,21 @@ export async function POST(request: Request) {
       )
     }
 
-    const { 
-      company_id, 
-      driver_id, 
-      week_start, 
-      week_end, 
-      invoice_date, 
+    const {
+      company_id,
+      driver_id,
+      week_start,
+      week_end,
+      invoice_date,
       percent,
       tax_percent,
       status,
       due_date,
-      notes, 
+      notes,
       currency,
-      loads, 
-      deductions 
+      manual_net_pay,
+      loads,
+      deductions
     } = parsed.data
 
     if (!isSuperAdmin && company_id !== user?.company_id) {
@@ -142,6 +144,7 @@ export async function POST(request: Request) {
         paid_at: paidAt,
         notes,
         currency,
+        manual_net_pay: manual_net_pay ?? undefined,
       loads: {
         create: loads.map((l: LoadInput) => ({
           load_ref: l.load_ref ?? undefined,

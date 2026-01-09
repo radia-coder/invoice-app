@@ -32,6 +32,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
     loads: invoice.loads.map(l => ({ ...l, amount: l.amount })),
     deductions: invoice.deductions.map(d => ({ ...d, amount: d.amount })),
     percent: invoice.percent,
+    manual_net_pay: invoice.manual_net_pay,
   };
 
   return (

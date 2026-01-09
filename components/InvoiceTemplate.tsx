@@ -53,6 +53,7 @@ export interface InvoiceData {
   }>;
   percent: number;
   tax_percent?: number;
+  manual_net_pay?: number | null;
   status?: string;
   due_date?: string | Date | null;
   currency?: string;
@@ -65,7 +66,8 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
     deductions: data.deductions,
     percent: data.percent,
     tax_percent: data.tax_percent || 0,
-    driver_type: data.driver.type
+    driver_type: data.driver.type,
+    manual_net_pay: data.manual_net_pay
   });
   const taxPercent = data.tax_percent || 0;
   const currency = data.currency || 'USD';
@@ -245,6 +247,7 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
       <!-- Deductions & Net -->
       <div class="flex justify-end mb-8">
         <div class="w-1/2 space-y-3">
+            ${data.percent > 0 ? `
              <!-- Percentage Line (Driver Pay for Company Driver, Company Cut for Owner-Operator) -->
             <div class="flex justify-between text-gray-600 border-b border-gray-100 pb-2">
                 <span>${percentLabel}</span>
@@ -264,6 +267,7 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
                 <span>${formatCurrency(totals.gross - totals.percentAmount, currency)}</span>
             </div>
             `}
+            ` : ''}
 
             <!-- Fixed Deductions -->
             ${nonZeroDeductions.length > 0 ? `

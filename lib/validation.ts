@@ -47,6 +47,7 @@ export const invoiceInputSchema = z.object({
   due_date: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   currency: z.string().min(3).max(3).default('USD'),
+  manual_net_pay: z.number().finite().min(0).optional().nullable(),
   loads: z.array(loadSchema).min(1, 'At least one load is required'),
   deductions: z.array(deductionSchema).optional().default([])
 }).superRefine((data, ctx) => {

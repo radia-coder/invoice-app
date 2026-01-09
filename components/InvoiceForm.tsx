@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm, useFieldArray, Controller, type FieldErrors } from 'react-hook-form';
-import { Plus, Trash, Save, Eye, EyeOff } from 'lucide-react';
+import { Plus, Trash, Save, Eye, EyeOff, DollarSign, X } from 'lucide-react';
 import { InvoiceTemplate } from './InvoiceTemplate';
 import { useRouter } from 'next/navigation';
 import { LocationInput, validateLocation } from './ui/location-input';
@@ -69,6 +69,7 @@ interface InvoiceFormData {
   due_date?: string;
   notes?: string;
   invoice_number?: string;
+  manual_net_pay?: number | null;
   loads: LoadItem[];
   deductions: DeductionItem[];
 }
@@ -86,6 +87,7 @@ interface Invoice {
   due_date?: Date | string | null;
   notes?: string | null;
   invoice_number: string;
+  manual_net_pay?: number | null;
   driver: Driver;
   loads: Array<{
     load_ref?: string | null;
@@ -122,6 +124,8 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
   const [deletingTypeId, setDeletingTypeId] = useState<number | null>(null);
   const [typeMessage, setTypeMessage] = useState('');
   const [typeError, setTypeError] = useState('');
+  const [showEditNetPay, setShowEditNetPay] = useState(false);
+  const [editNetPayValue, setEditNetPayValue] = useState('');
   const requiredDateMessage = 'Please fill all required dates.';
 
   // Format date helper
@@ -144,6 +148,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
         due_date: formatDate(initialData.due_date || ''),
         notes: initialData.notes || '',
         invoice_number: initialData.invoice_number,
+        manual_net_pay: initialData.manual_net_pay ?? null,
         loads: initialData.loads.map((l) => ({
           load_ref: l.load_ref || '',
           vendor: l.vendor || '',
@@ -175,6 +180,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
       status: 'draft',
       due_date: '',
       notes: '',
+      manual_net_pay: null,
       loads: [{ load_ref: '', vendor: '', from_location: '', to_location: '', load_date: '', delivery_date: '', amount: 0 }],
       deductions: []
     };
@@ -411,6 +417,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
         percent: parseFloat(data.percent.toString()),
         tax_percent: parseFloat(data.tax_percent.toString()),
         currency: 'USD',
+        manual_net_pay: data.manual_net_pay !== null && data.manual_net_pay !== undefined ? data.manual_net_pay : null,
         loads: transformedLoads,
         deductions: data.deductions
           .filter((d: DeductionItem) => d.deduction_type.trim().toLowerCase() !== 'date del')
@@ -527,13 +534,14 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
           amount: Number(l.amount),
           load_ref: l.load_ref
       })),
-      deductions: watchedDeductions.map((d: DeductionItem) => ({ 
+      deductions: watchedDeductions.map((d: DeductionItem) => ({
           deduction_type: d.deduction_type,
           amount: Number(d.amount),
           note: d.note
       })),
       percent: Number(watchedPercent),
       tax_percent: Number(watchedTaxPercent),
+      manual_net_pay: watch('manual_net_pay'),
       status: watch('status'),
       due_date: watch('due_date'),
       currency: 'USD',
@@ -585,9 +593,13 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
 
   // Company Driver: percent is driver pay, net = driverPay - fixedDeductions
   // Owner-Operator: percent is company cut, net = gross - companyCut - fixedDeductions
-  const net = isCompanyDriver
+  const calculatedNet = isCompanyDriver
     ? percentAmount - fixedDed - taxAmount
     : totalLoad - percentAmount - fixedDed - taxAmount;
+
+  // Use manual net pay if set, otherwise use calculated
+  const manualNetPay = watch('manual_net_pay');
+  const net = manualNetPay !== null && manualNetPay !== undefined ? manualNetPay : calculatedNet;
 
   const formatMoney = (amount: number) => {
     try {
@@ -968,7 +980,12 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                 </div>
                 <div className="border-t border-zinc-600 pt-3 flex justify-between text-lg font-bold">
                     <span className="text-white">Net Pay</span>
-                    <span className="text-emerald-400">{formatMoney(net)}</span>
+                    <span className="text-emerald-400">
+                      {formatMoney(net)}
+                      {manualNetPay !== null && manualNetPay !== undefined && (
+                        <span className="text-xs text-zinc-400 ml-2">(Manual)</span>
+                      )}
+                    </span>
                 </div>
             </div>
 
@@ -980,6 +997,16 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
       </div>
 
       <div className="flex justify-end space-x-4 border-t border-zinc-800 pt-6">
+        <button
+            type="button"
+            onClick={() => {
+              setEditNetPayValue(manualNetPay !== null && manualNetPay !== undefined ? manualNetPay.toString() : '');
+              setShowEditNetPay(true);
+            }}
+            className="inline-flex items-center px-5 py-2.5 border border-zinc-700 shadow-sm text-sm font-medium rounded-lg text-zinc-300 bg-zinc-800 hover:bg-zinc-700 transition-colors"
+        >
+            <DollarSign className="w-4 h-4 mr-2" /> Edit Net Pay
+        </button>
         <button
             type="button"
             onClick={async () => {
@@ -1005,6 +1032,102 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
             <Save className="w-4 h-4 mr-2" /> {submitting ? 'Saving...' : 'Save Invoice'}
         </button>
       </div>
+
+      {/* Edit Net Pay Modal */}
+      {showEditNetPay && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl p-6 w-full max-w-md">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-white">Edit Net Pay</h3>
+              <button
+                type="button"
+                onClick={() => setShowEditNetPay(false)}
+                className="text-zinc-400 hover:text-white transition-colors"
+                title="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-zinc-300 mb-2">
+                  Calculated Net Pay: <span className="text-emerald-400">{formatMoney(calculatedNet)}</span>
+                </label>
+                <label className="block text-sm font-medium text-zinc-300 mb-2">
+                  Manual Net Pay Amount
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editNetPayValue}
+                  onChange={(e) => setEditNetPayValue(e.target.value)}
+                  placeholder="Enter net pay amount"
+                  className="block w-full rounded-lg border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 shadow-sm focus:ring-2 focus:ring-[#7a67e7] border p-2.5"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const value = parseFloat(editNetPayValue);
+                      if (editNetPayValue === '' || isNaN(value)) {
+                        setValue('manual_net_pay', null);
+                      } else if (value < 0) {
+                        alert('Net pay cannot be negative');
+                        return;
+                      } else {
+                        setValue('manual_net_pay', value);
+                      }
+                      setShowEditNetPay(false);
+                    }
+                  }}
+                />
+                <p className="mt-1 text-xs text-zinc-400">
+                  Leave empty to use calculated net pay
+                </p>
+              </div>
+              <div className="flex justify-end space-x-3">
+                {manualNetPay !== null && manualNetPay !== undefined && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setValue('manual_net_pay', null);
+                      setEditNetPayValue('');
+                      setShowEditNetPay(false);
+                    }}
+                    className="px-4 py-2 border border-zinc-700 text-sm font-medium rounded-lg text-zinc-300 bg-zinc-800 hover:bg-zinc-700 transition-colors"
+                  >
+                    Reset to Calculated
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowEditNetPay(false)}
+                  className="px-4 py-2 border border-zinc-700 text-sm font-medium rounded-lg text-zinc-300 bg-zinc-800 hover:bg-zinc-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const value = parseFloat(editNetPayValue);
+                    if (editNetPayValue === '' || isNaN(value)) {
+                      setValue('manual_net_pay', null);
+                    } else if (value < 0) {
+                      alert('Net pay cannot be negative');
+                      return;
+                    } else {
+                      setValue('manual_net_pay', value);
+                    }
+                    setShowEditNetPay(false);
+                  }}
+                  className="px-4 py-2 bg-[#7a67e7] text-white rounded-lg text-sm hover:bg-[#6b59d6] transition-colors"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   );
 }
