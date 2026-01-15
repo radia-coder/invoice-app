@@ -61,9 +61,27 @@ export interface InvoiceData {
 }
 
 export const generateInvoiceHTML = (data: InvoiceData) => {
+  const normalizeAmount = (value: unknown) => {
+    if (value === null || value === undefined || value === '') return 0;
+    const num = Number(value);
+    return Number.isFinite(num) ? num : 0;
+  };
+
+  const displayedDeductions = data.deductions
+    .map((deduction) => ({
+      ...deduction,
+      deduction_type: deduction.deduction_type || '',
+      amount: normalizeAmount(deduction.amount)
+    }))
+    .filter(
+      (deduction) =>
+        deduction.deduction_type.trim().toLowerCase() !== 'date del' &&
+        deduction.amount > 0
+    );
+
   const totals = calculateInvoiceTotals({
     loads: data.loads,
-    deductions: data.deductions,
+    deductions: displayedDeductions,
     percent: data.percent,
     tax_percent: data.tax_percent || 0,
     driver_type: data.driver.type,
@@ -144,11 +162,7 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
     `).join('');
 
   // Filter deductions to only include non-zero amounts
-  const nonZeroDeductions = data.deductions.filter(
-    (d) => d.deduction_type.trim().toLowerCase() !== 'date del' && d.amount > 0
-  );
-
-  const deductionsRows = nonZeroDeductions.map(d => `
+  const deductionsRows = displayedDeductions.map(d => `
     <div class="flex justify-between text-sm text-gray-600">
         <span>${escapeHtml(d.deduction_type)} ${d.note ? `(${escapeHtml(d.note)})` : ''}</span>
         <span class="text-red-600">- ${formatCurrency(d.amount, currency)}</span>
@@ -270,7 +284,7 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
             ` : ''}
 
             <!-- Fixed Deductions -->
-            ${nonZeroDeductions.length > 0 ? `
+            ${displayedDeductions.length > 0 ? `
                 <div class="border-t border-gray-200 pt-2 space-y-1">
                     ${deductionsRows}
                     <div class="flex justify-between font-medium text-gray-800 pt-1 border-t border-gray-100">

@@ -39,7 +39,7 @@ export function getAutoDeductionConfigFromCompany(company: {
   dispatch_rate?: number | null;
   auto_deduction_base?: string | null;
 }): AutoDeductionConfig {
-  if (process.env.AUTO_DEDUCTIONS_ENABLED === 'false') {
+  if (process.env.AUTO_DEDUCTIONS_ENABLED !== 'true') {
     return {
       base: 'YTD_INSURANCE',
       factoringPercent: 0,
@@ -95,6 +95,10 @@ export function mergeDeductionsWithAuto(
   deductions: DeductionLike[],
   autoEntries: DeductionLike[]
 ): DeductionLike[] {
+  if (autoEntries.length === 0) {
+    return deductions;
+  }
+
   const filtered = deductions.filter(
     (ded) => !isFactoringDeduction(ded.deduction_type) && !isDispatchDeduction(ded.deduction_type)
   );
