@@ -1,4 +1,4 @@
-import puppeteer, { type Browser } from 'puppeteer';
+import puppeteer, { type Browser, type Page } from 'puppeteer';
 import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
@@ -7,6 +7,10 @@ import { invoicePdfStyles } from '@/lib/invoice-pdf-styles';
 
 const PDF_DIR = path.join(process.cwd(), 'storage', 'pdfs');
 const LOGO_CACHE_DIR = path.join(process.cwd(), 'storage', 'logo-cache');
+const A4_WIDTH_PX = Math.round((210 / 25.4) * 96);
+const A4_HEIGHT_PX = Math.round((297 / 25.4) * 96);
+const PDF_MARGIN_PX = 20;
+const MIN_PDF_SCALE = 0.1;
 
 const formatPdfDate = (value: string | Date | null | undefined) => {
   if (!value) return '';
@@ -93,6 +97,20 @@ const buildInvoiceHtml = (invoiceData: InvoiceData) => {
   `;
 };
 
+const getInvoiceContentHeight = async (page: Page) =>
+  page.evaluate(() => {
+    const container = document.getElementById('invoice-container');
+    const height = container?.getBoundingClientRect().height ?? document.documentElement.scrollHeight;
+    return Math.ceil(height);
+  });
+
+const computePdfScale = (contentHeight: number) => {
+  const printableHeight = A4_HEIGHT_PX - PDF_MARGIN_PX * 4;
+  if (contentHeight <= printableHeight) return 1;
+  const scale = printableHeight / contentHeight;
+  return Math.max(MIN_PDF_SCALE, Math.min(1, Number(scale.toFixed(3))));
+};
+
 const getLogoDataUrl = async (logoUrl: string | null | undefined) => {
   if (!logoUrl) return null;
   const trimmed = logoUrl.trim();
@@ -160,11 +178,15 @@ export async function getInvoicePdfBuffer(
   const page = await browser.newPage();
 
   try {
+    await page.setViewport({ width: A4_WIDTH_PX, height: A4_HEIGHT_PX, deviceScaleFactor: 1 });
     await page.setContent(html, { waitUntil: 'load', timeout: 15000 });
+    const contentHeight = await getInvoiceContentHeight(page);
+    const scale = computePdfScale(contentHeight);
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
       margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' },
+      scale
     });
 
     const buffer = Buffer.from(pdfBuffer);
