@@ -297,6 +297,19 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
     }
   };
 
+  // Load drivers on initial mount when editing
+  useEffect(() => {
+    if (initialData && initialData.company_id) {
+      fetch(`/api/drivers?companyId=${initialData.company_id}`)
+        .then(res => res.json())
+        .then(data => {
+          setDrivers(data);
+        });
+      fetchDeductionTypes(initialData.company_id);
+      fetchCreditTypes(initialData.company_id);
+    }
+  }, [initialData]);
+
   // Fetch drivers and deduction types when company changes
   useEffect(() => {
     if (selectedCompanyId) {
