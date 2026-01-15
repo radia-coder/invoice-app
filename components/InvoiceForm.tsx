@@ -127,6 +127,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
   const router = useRouter();
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [deductionTypes, setDeductionTypes] = useState<DeductionType[]>([]);
+  const [creditTypes, setCreditTypes] = useState<DeductionType[]>([]);
   const [previewMode, setPreviewMode] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showNewTypeInput, setShowNewTypeInput] = useState(false);
@@ -136,6 +137,13 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
   const [deletingTypeId, setDeletingTypeId] = useState<number | null>(null);
   const [typeMessage, setTypeMessage] = useState('');
   const [typeError, setTypeError] = useState('');
+  const [showNewCreditTypeInput, setShowNewCreditTypeInput] = useState(false);
+  const [newCreditTypeName, setNewCreditTypeName] = useState('');
+  const [creatingCreditType, setCreatingCreditType] = useState(false);
+  const [showDeleteCreditTypeInput, setShowDeleteCreditTypeInput] = useState(false);
+  const [deletingCreditTypeId, setDeletingCreditTypeId] = useState<number | null>(null);
+  const [creditTypeMessage, setCreditTypeMessage] = useState('');
+  const [creditTypeError, setCreditTypeError] = useState('');
   const [showEditNetPay, setShowEditNetPay] = useState(false);
   const [editNetPayValue, setEditNetPayValue] = useState('');
   const requiredDateMessage = 'Please fill all required dates.';
@@ -308,18 +316,46 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                 }
             }
         });
-      // Fetch deduction types for this company
+      // Fetch deduction types and credit types for this company
       fetchDeductionTypes(selectedCompanyId);
+      fetchCreditTypes(selectedCompanyId);
     } else {
       setDrivers([]);
-      // Still fetch global deduction types
+      // Still fetch global deduction types and credit types
       fetchDeductionTypes();
+      fetchCreditTypes();
     }
   }, [selectedCompanyId, companies, setValue, initialData]);
 
-  // Initial fetch for deduction types
+  // Fetch credit types
+  const fetchCreditTypes = async (companyId?: string | number) => {
+    try {
+      const url = companyId
+        ? `/api/credit-types?companyId=${companyId}`
+        : '/api/credit-types';
+      const res = await fetch(url);
+      const data = await res.json();
+      setCreditTypes(data);
+      return data as DeductionType[];
+    } catch (error) {
+      console.error('Error fetching credit types:', error);
+      const fallback = [
+        { id: 0, name: 'Advance', company_id: null, is_default: true },
+        { id: 1, name: 'Bonus', company_id: null, is_default: true },
+        { id: 2, name: 'Reimbursement', company_id: null, is_default: true },
+        { id: 3, name: 'Detention', company_id: null, is_default: true },
+        { id: 4, name: 'Layover', company_id: null, is_default: true },
+        { id: 5, name: 'Other', company_id: null, is_default: true }
+      ];
+      setCreditTypes(fallback as any);
+      return fallback;
+    }
+  };
+
+  // Initial fetch for deduction types and credit types
   useEffect(() => {
     fetchDeductionTypes();
+    fetchCreditTypes();
   }, []);
 
   // Create new deduction type
@@ -401,6 +437,89 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
       setTypeError('Failed to delete deduction type.');
     } finally {
       setDeletingTypeId(null);
+    }
+  };
+
+  // Create new credit type
+  const handleCreateNewCreditType = async () => {
+    if (!newCreditTypeName.trim()) {
+      setCreditTypeError('Please enter a type name.');
+      return;
+    }
+    if (!selectedCompanyId) {
+      setCreditTypeError('Select a company before adding a credit type.');
+      return;
+    }
+
+    setCreditTypeError('');
+    setCreditTypeMessage('');
+    setCreatingCreditType(true);
+    try {
+      const res = await fetch('/api/credit-types', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newCreditTypeName.trim(),
+          companyId: Number(selectedCompanyId)
+        })
+      });
+
+      if (res.ok) {
+        const newType = await res.json();
+        await fetchCreditTypes(selectedCompanyId);
+        setNewCreditTypeName('');
+        setShowNewCreditTypeInput(false);
+        // Append a new credit with this type
+        appendCredit({ credit_type: newType.name, amount: 0, note: '' });
+        setCreditTypeMessage('Credit type added.');
+      } else if (res.status === 409) {
+        setCreditTypeError('This credit type already exists.');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setCreditTypeError(data?.error || 'Failed to create credit type.');
+      }
+    } catch (error) {
+      console.error('Error creating credit type:', error);
+      setCreditTypeError('Failed to create credit type.');
+    } finally {
+      setCreatingCreditType(false);
+    }
+  };
+
+  // Delete credit type
+  const handleDeleteCreditType = async (type: DeductionType) => {
+    if (type.is_default) return;
+    const confirmed = window.confirm(
+      `Remove "${type.name}"? This will only remove it from the list. Existing invoices stay unchanged.`
+    );
+    if (!confirmed) return;
+
+    setDeletingCreditTypeId(type.id);
+    setCreditTypeError('');
+    setCreditTypeMessage('');
+    try {
+      const res = await fetch(`/api/credit-types/${type.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setCreditTypeError(data?.error || 'Failed to delete credit type.');
+        return;
+      }
+
+      const nextTypes = await fetchCreditTypes(selectedCompanyId);
+      const fallbackType =
+        nextTypes.find((dt: DeductionType) => dt.name === 'Other')?.name || nextTypes[0]?.name || 'Other';
+      watchedCredits.forEach((credit, index) => {
+        if (credit.credit_type === type.name) {
+          setValue(`credits.${index}.credit_type`, fallbackType);
+        }
+      });
+
+      setCreditTypeMessage('Credit type removed.');
+    } catch (error) {
+      console.error('Error deleting credit type:', error);
+      setCreditTypeError('Failed to delete credit type.');
+    } finally {
+      setDeletingCreditTypeId(null);
     }
   };
 
@@ -973,20 +1092,116 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
           <div>
             <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-medium leading-6 text-white">Credits / Additions</h3>
-                <button type="button" onClick={() => appendCredit({ credit_type: 'Advance', amount: 0, note: '' })} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-emerald-400 bg-emerald-900/20 hover:bg-emerald-900/30 transition-colors">
-                    <Plus className="w-4 h-4 mr-1" /> Add
-                </button>
+                <div className="flex gap-2">
+                    <button type="button" onClick={() => appendCredit({ credit_type: creditTypes[0]?.name || 'Advance', amount: 0, note: '' })} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-emerald-400 bg-emerald-900/20 hover:bg-emerald-900/30 transition-colors">
+                        <Plus className="w-4 h-4 mr-1" /> Add
+                    </button>
+                    <button type="button" onClick={() => setShowNewCreditTypeInput(true)} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-emerald-400 bg-emerald-900/20 hover:bg-emerald-900/30 transition-colors">
+                        <Plus className="w-4 h-4 mr-1" /> New Type
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteCreditTypeInput(true)}
+                      className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-red-300 bg-[#301b1f] hover:bg-[#3a2428] transition-colors"
+                      title="Delete custom type"
+                    >
+                      <Trash className="w-4 h-4" />
+                    </button>
+                </div>
             </div>
+
+            {/* New Credit Type Input */}
+            {showNewCreditTypeInput && (
+              <div className="mb-4 p-4 bg-zinc-800 rounded-lg border border-zinc-700">
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    value={newCreditTypeName}
+                    onChange={(e) => setNewCreditTypeName(e.target.value)}
+                    placeholder="e.g., Per Diem, Tool Reimbursement"
+                    className="flex-1 border-zinc-600 bg-zinc-700 text-white placeholder-zinc-400 rounded-lg shadow-sm border p-2.5 sm:text-sm focus:ring-2 focus:ring-emerald-500"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleCreateNewCreditType();
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCreateNewCreditType}
+                    disabled={creatingCreditType}
+                    className="px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                  >
+                    {creatingCreditType ? 'Saving...' : 'Save'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNewCreditTypeInput(false);
+                      setNewCreditTypeName('');
+                    }}
+                    className="px-4 py-2.5 bg-zinc-600 text-white rounded-lg text-sm hover:bg-zinc-500 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-zinc-400">Enter a new credit type name (e.g., Per Diem, Tool Allowance)</p>
+                {creditTypeError ? <p className="mt-2 text-xs text-red-400">{creditTypeError}</p> : null}
+              </div>
+            )}
+
+            {showDeleteCreditTypeInput ? (
+              <div className="mb-4 p-4 bg-zinc-800 rounded-lg border border-zinc-700">
+                <div className="flex gap-2 items-center">
+                  <select
+                    className="flex-1 border-zinc-600 bg-zinc-700 text-white rounded-lg shadow-sm border p-2.5 sm:text-sm focus:ring-2 focus:ring-red-500"
+                    defaultValue=""
+                    onChange={(event) => {
+                      const selected = creditTypes.find((type) => type.id === Number(event.target.value));
+                      if (selected) {
+                        handleDeleteCreditType(selected);
+                        event.currentTarget.value = '';
+                      }
+                    }}
+                  >
+                    <option value="" disabled>Select custom type to delete</option>
+                    {creditTypes.filter((type) => !type.is_default).map((type) => (
+                      <option key={type.id} value={type.id}>{type.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteCreditTypeInput(false)}
+                    className="px-4 py-2.5 bg-zinc-600 text-white rounded-lg text-sm hover:bg-zinc-500 transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+                {creditTypeMessage ? <p className="mt-2 text-xs text-emerald-400">{creditTypeMessage}</p> : null}
+                {creditTypeError ? <p className="mt-2 text-xs text-red-400">{creditTypeError}</p> : null}
+                {deletingCreditTypeId ? <p className="mt-2 text-xs text-zinc-400">Removing...</p> : null}
+              </div>
+            ) : null}
+
             <div className="space-y-2">
                 {creditFields.map((field, index) => (
                     <div key={field.id} className="flex gap-2 items-start">
                         <select {...register(`credits.${index}.credit_type` as const)} className="block w-[140px] flex-none border-zinc-700 bg-zinc-800 text-white rounded-lg shadow-sm border p-2.5 sm:text-sm">
-                            <option value="Advance">Advance</option>
-                            <option value="Bonus">Bonus</option>
-                            <option value="Reimbursement">Reimbursement</option>
-                            <option value="Detention">Detention Pay</option>
-                            <option value="Layover">Layover Pay</option>
-                            <option value="Other">Other</option>
+                            {creditTypes.length > 0 ? (
+                              creditTypes.map(ct => (
+                                <option key={ct.id} value={ct.name}>{ct.name}</option>
+                              ))
+                            ) : (
+                              <>
+                                <option value="Advance">Advance</option>
+                                <option value="Bonus">Bonus</option>
+                                <option value="Reimbursement">Reimbursement</option>
+                                <option value="Detention">Detention</option>
+                                <option value="Layover">Layover</option>
+                                <option value="Other">Other</option>
+                              </>
+                            )}
                         </select>
                         <input type="number" step="0.01" {...register(`credits.${index}.amount` as const)} placeholder="Amount" className="block w-[100px] flex-none border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm border p-2.5 sm:text-sm" />
                         <input type="text" {...register(`credits.${index}.note` as const)} placeholder="Note" className="block flex-1 min-w-[80px] border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm border p-2.5 sm:text-sm" />

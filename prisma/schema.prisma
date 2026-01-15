@@ -32,6 +32,7 @@ model Company {
   drivers         Driver[]
   invoices        Invoice[]
   deductionTypes  DeductionType[]
+  creditTypes     CreditType[]
   users           User[]
 }
 
@@ -151,6 +152,19 @@ model DeductionType {
   company     Company?  @relation(fields: [company_id], references: [id], onDelete: Cascade)
 
   @@unique([name, company_id]) // Unique per company or globally
+}
+
+model CreditType {
+  id          Int       @id @default(autoincrement())
+  name        String
+  company_id  Int?      // Optional: if null, it's a global/default type
+  is_default  Boolean   @default(false) // Mark built-in types
+  created_at  DateTime  @default(now())
+
+  company     Company?  @relation(fields: [company_id], references: [id], onDelete: Cascade)
+
+  @@unique([name, company_id]) // Unique per company or globally
+  @@index([company_id])
 }
 
 model User {
