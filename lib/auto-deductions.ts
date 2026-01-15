@@ -39,6 +39,14 @@ export function getAutoDeductionConfigFromCompany(company: {
   dispatch_rate?: number | null;
   auto_deduction_base?: string | null;
 }): AutoDeductionConfig {
+  if (process.env.AUTO_DEDUCTIONS_ENABLED === 'false') {
+    return {
+      base: 'YTD_INSURANCE',
+      factoringPercent: 0,
+      dispatchPercent: 0
+    };
+  }
+
   return {
     base: company.auto_deduction_base === 'YTD_INSURANCE' ? 'YTD_INSURANCE' : 'YTD_INSURANCE',
     factoringPercent: company.factoring_rate ?? 2,

@@ -86,8 +86,8 @@ const buildInvoiceHtml = (invoiceData: InvoiceData) => {
         <title>Invoice ${invoiceData.invoice_number}</title>
         <style>${invoicePdfStyles}</style>
         <style>
-           @page { margin: 20px; }
-           body { -webkit-print-color-adjust: exact; }
+           @page { margin: 0; }
+           body { -webkit-print-color-adjust: exact; margin: 0; }
         </style>
       </head>
       <body>
@@ -180,6 +180,7 @@ export async function getInvoicePdfBuffer(
   try {
     await page.setViewport({ width: A4_WIDTH_PX, height: A4_HEIGHT_PX, deviceScaleFactor: 1 });
     await page.setContent(html, { waitUntil: 'load', timeout: 15000 });
+    await page.emulateMediaType('screen');
     const contentHeight = await getInvoiceContentHeight(page);
     const scale = computePdfScale(contentHeight);
     const pdfBuffer = await page.pdf({
