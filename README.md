@@ -101,3 +101,4 @@ ADMIN_PASSWORD=Maahir@12345
 
 UPDATE User SET email = 'maahir.engineer@gmail.com', password_hash = 'pbkdf2$120000$2f3e7f943aa1efb6592af11a5187851e$fa1f58088c3182f5f25a35e481333961af4f2de4e39751532c1f86f0be6a1a56' WHERE role = 'super_admin';
 .quit
+
