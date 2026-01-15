@@ -57,6 +57,12 @@ interface DeductionItem {
   deduction_date?: string;
 }
 
+interface CreditItem {
+  credit_type: string;
+  amount: number | string;
+  note?: string;
+}
+
 interface InvoiceFormData {
   company_id: string | number;
   driver_id: string | number;
@@ -72,6 +78,7 @@ interface InvoiceFormData {
   manual_net_pay?: number | null;
   loads: LoadItem[];
   deductions: DeductionItem[];
+  credits: CreditItem[];
 }
 
 interface Invoice {
@@ -103,6 +110,11 @@ interface Invoice {
     amount: number;
     note?: string | null;
     deduction_date?: Date | string | null;
+  }>;
+  credits?: Array<{
+    credit_type: string;
+    amount: number;
+    note?: string | null;
   }>;
 }
 
@@ -165,7 +177,12 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
             amount: d.amount,
             note: d.note || '',
             deduction_date: formatDate(d.deduction_date || '')
-          }))
+          })),
+        credits: (initialData.credits || []).map((c) => ({
+          credit_type: c.credit_type,
+          amount: c.amount,
+          note: c.note || ''
+        }))
       };
     }
 
@@ -182,7 +199,8 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
       notes: '',
       manual_net_pay: null,
       loads: [{ load_ref: '', vendor: '', from_location: '', to_location: '', load_date: '', delivery_date: '', amount: 0 }],
-      deductions: []
+      deductions: [],
+      credits: []
     };
   }, [initialData]);
 
@@ -219,6 +237,11 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
     name: 'deductions'
   });
 
+  const { fields: creditFields, append: appendCredit, remove: removeCredit } = useFieldArray({
+    control,
+    name: 'credits'
+  });
+
   const selectedCompanyId = watch('company_id');
   const selectedDriverId = watch('driver_id');
   const watchedWeekStart = watch('week_start');
@@ -229,6 +252,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
   const watchedTaxPercent = watch('tax_percent');
   const watchedLoads = watch('loads');
   const watchedDeductions = watch('deductions');
+  const watchedCredits = watch('credits');
   const visibleDeductionTypes = deductionTypes.filter(
     (type) => type.name.trim().toLowerCase() !== 'date del'
   );
@@ -539,6 +563,11 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
           amount: Number(d.amount),
           note: d.note
       })),
+      credits: watchedCredits.map((c: CreditItem) => ({
+          credit_type: c.credit_type,
+          amount: Number(c.amount),
+          note: c.note
+      })),
       percent: Number(watchedPercent),
       tax_percent: Number(watchedTaxPercent),
       manual_net_pay: watch('manual_net_pay'),
@@ -586,16 +615,17 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
   const taxPercentValue = Number(watchedTaxPercent) || 0;
   const taxAmount = totalLoad * (taxPercentValue / 100);
   const fixedDed = watchedDeductions?.reduce((sum: number, d: DeductionItem) => sum + (Number(d.amount) || 0), 0) || 0;
+  const totalCredits = watchedCredits?.reduce((sum: number, c: CreditItem) => sum + (Number(c.amount) || 0), 0) || 0;
 
   // Get selected driver to determine calculation type
   const selectedDriver = drivers.find(d => d.id === parseInt(selectedDriverId?.toString() || '0')) || initialData?.driver;
   const isCompanyDriver = selectedDriver?.type === 'Company Driver';
 
-  // Company Driver: percent is driver pay, net = driverPay - fixedDeductions
-  // Owner-Operator: percent is company cut, net = gross - companyCut - fixedDeductions
+  // Company Driver: percent is driver pay, net = driverPay - fixedDeductions + credits
+  // Owner-Operator: percent is company cut, net = gross - companyCut - fixedDeductions + credits
   const calculatedNet = isCompanyDriver
-    ? percentAmount - fixedDed - taxAmount
-    : totalLoad - percentAmount - fixedDed - taxAmount;
+    ? percentAmount - fixedDed + totalCredits - taxAmount
+    : totalLoad - percentAmount - fixedDed + totalCredits - taxAmount;
 
   // Use manual net pay if set, otherwise use calculated
   const manualNetPay = watch('manual_net_pay');
@@ -939,6 +969,42 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
             </div>
           </div>
 
+          {/* Credits/Additions */}
+          <div>
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium leading-6 text-white">Credits / Additions</h3>
+                <button type="button" onClick={() => appendCredit({ credit_type: 'Advance', amount: 0, note: '' })} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-emerald-400 bg-emerald-900/20 hover:bg-emerald-900/30 transition-colors">
+                    <Plus className="w-4 h-4 mr-1" /> Add
+                </button>
+            </div>
+            <div className="space-y-2">
+                {creditFields.map((field, index) => (
+                    <div key={field.id} className="flex gap-2 items-start">
+                        <select {...register(`credits.${index}.credit_type` as const)} className="block w-[140px] flex-none border-zinc-700 bg-zinc-800 text-white rounded-lg shadow-sm border p-2.5 sm:text-sm">
+                            <option value="Advance">Advance</option>
+                            <option value="Bonus">Bonus</option>
+                            <option value="Reimbursement">Reimbursement</option>
+                            <option value="Detention">Detention Pay</option>
+                            <option value="Layover">Layover Pay</option>
+                            <option value="Other">Other</option>
+                        </select>
+                        <input type="number" step="0.01" {...register(`credits.${index}.amount` as const)} placeholder="Amount" className="block w-[100px] flex-none border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm border p-2.5 sm:text-sm" />
+                        <input type="text" {...register(`credits.${index}.note` as const)} placeholder="Note" className="block flex-1 min-w-[80px] border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm border p-2.5 sm:text-sm" />
+                        <button
+                          type="button"
+                          onClick={() => removeCredit(index)}
+                          className="mt-0.5 inline-flex items-center justify-center rounded-md bg-[#1b2f1f] p-2 text-emerald-300 hover:bg-[#24382a] transition-colors"
+                          title="Remove credit"
+                        >
+                          <Trash className="w-4 h-4" />
+                        </button>
+                    </div>
+                ))}
+            </div>
+          </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-8 border-t border-zinc-800 pt-6">
           {/* Totals & Notes */}
           <div className="bg-zinc-800/50 border border-zinc-700 p-5 rounded-xl space-y-4">
             <h3 className="text-lg font-medium text-white">Summary</h3>
@@ -967,6 +1033,10 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                 <div className="flex justify-between">
                     <span className="text-zinc-400">Fixed Deductions</span>
                     <span className="text-red-400">-{formatMoney(fixedDed)}</span>
+                </div>
+                <div className="flex justify-between">
+                    <span className="text-zinc-400">Credits / Additions</span>
+                    <span className="text-emerald-400">+{formatMoney(totalCredits)}</span>
                 </div>
                 <div className="flex justify-between items-center">
                     <span className="text-zinc-400 flex items-center gap-2">

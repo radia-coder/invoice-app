@@ -51,7 +51,7 @@ model Driver {
 
   company                 Company?  @relation(fields: [company_id], references: [id], onDelete: SetNull)
   invoices                Invoice[]
-  
+
   @@index([company_id])
   @@index([status])
   @@index([company_id, status])
@@ -83,6 +83,7 @@ model Invoice {
   driver          Driver    @relation(fields: [driver_id], references: [id])
   loads           InvoiceLoad[]
   deductions      InvoiceDeduction[]
+  credits         InvoiceCredit[]
 
   @@index([company_id])
   @@index([driver_id])
@@ -107,7 +108,7 @@ model InvoiceLoad {
   amount        Float
 
   invoice       Invoice  @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
-  
+
   @@index([invoice_id])
   @@index([vendor])
   @@index([load_date])
@@ -122,9 +123,22 @@ model InvoiceDeduction {
   deduction_date DateTime? // Used for "Date del" type to store delivery date
 
   invoice        Invoice @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
-  
+
   @@index([invoice_id])
   @@index([deduction_type])
+}
+
+model InvoiceCredit {
+  id          Int     @id @default(autoincrement())
+  invoice_id  Int
+  credit_type String  // "Advance", "Bonus", "Reimbursement", "Detention", "Layover", "Other", or custom types
+  amount      Float
+  note        String?
+
+  invoice     Invoice @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+
+  @@index([invoice_id])
+  @@index([credit_type])
 }
 
 model DeductionType {

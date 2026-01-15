@@ -35,6 +35,12 @@ export const deductionSchema = z.object({
   deduction_date: z.string().optional().nullable()
 });
 
+export const creditSchema = z.object({
+  credit_type: z.string().min(1, 'Credit type is required'),
+  amount: z.number().finite().min(0, 'Amount must be at least 0'),
+  note: z.string().optional().nullable()
+});
+
 export const invoiceInputSchema = z.object({
   company_id: z.number(),
   driver_id: z.number(),
@@ -49,7 +55,8 @@ export const invoiceInputSchema = z.object({
   currency: z.string().min(3).max(3).default('USD'),
   manual_net_pay: z.number().finite().min(0).optional().nullable(),
   loads: z.array(loadSchema).min(1, 'At least one load is required'),
-  deductions: z.array(deductionSchema).optional().default([])
+  deductions: z.array(deductionSchema).optional().default([]),
+  credits: z.array(creditSchema).optional().default([])
 }).superRefine((data, ctx) => {
   const start = new Date(data.week_start);
   const end = new Date(data.week_end);

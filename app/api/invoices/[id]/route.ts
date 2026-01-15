@@ -30,6 +30,12 @@ interface DeductionInput {
   deduction_date?: string | null;
 }
 
+interface CreditInput {
+  credit_type: string;
+  amount: string | number;
+  note?: string | null;
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -44,7 +50,8 @@ export async function GET(
       company: true,
       driver: true,
       loads: true,
-      deductions: true
+      deductions: true,
+      credits: true
     }
   })
 
@@ -95,6 +102,10 @@ export async function PUT(
         deductions: (body.deductions || []).map((d: DeductionInput) => ({
           ...d,
           amount: Number(d.amount)
+        })),
+        credits: (body.credits || []).map((c: CreditInput) => ({
+          ...c,
+          amount: Number(c.amount)
         }))
       }
 
@@ -120,9 +131,10 @@ export async function PUT(
         currency,
         manual_net_pay,
         loads,
-        deductions
+        deductions,
+        credits
       } = parsed.data
-  
+
       if (!isSuperAdmin && company_id !== user?.company_id) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
@@ -164,6 +176,7 @@ export async function PUT(
 
         await tx.invoiceLoad.deleteMany({ where: { invoice_id: invoiceId } })
         await tx.invoiceDeduction.deleteMany({ where: { invoice_id: invoiceId } })
+        await tx.invoiceCredit.deleteMany({ where: { invoice_id: invoiceId } })
 
         if (loads && loads.length > 0) {
             await tx.invoiceLoad.createMany({
@@ -192,16 +205,28 @@ export async function PUT(
             })
         }
 
+        if (credits && credits.length > 0) {
+            await tx.invoiceCredit.createMany({
+                data: credits.map((c: CreditInput) => ({
+                    invoice_id: invoiceId,
+                    credit_type: c.credit_type,
+                    amount: parseFloat(c.amount.toString()),
+                    note: c.note ?? undefined
+                }))
+            })
+        }
+
         return updatedInvoice
       })
-  
+
       const invoiceWithRelations = await prisma.invoice.findUnique({
         where: { id: invoiceId },
         include: {
           company: true,
           driver: true,
           loads: true,
-          deductions: true
+          deductions: true,
+          credits: true
         }
       })
 

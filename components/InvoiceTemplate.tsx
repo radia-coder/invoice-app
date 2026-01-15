@@ -51,6 +51,11 @@ export interface InvoiceData {
     amount: number;
     note?: string | null;
   }>;
+  credits?: Array<{
+    credit_type: string;
+    amount: number;
+    note?: string | null;
+  }>;
   percent: number;
   tax_percent?: number;
   manual_net_pay?: number | null;
@@ -79,9 +84,18 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
         deduction.amount > 0
     );
 
+  const displayedCredits = (data.credits || [])
+    .map((credit) => ({
+      ...credit,
+      credit_type: credit.credit_type || '',
+      amount: normalizeAmount(credit.amount)
+    }))
+    .filter((credit) => credit.amount > 0);
+
   const totals = calculateInvoiceTotals({
     loads: data.loads,
     deductions: displayedDeductions,
+    credits: displayedCredits,
     percent: data.percent,
     tax_percent: data.tax_percent || 0,
     driver_type: data.driver.type,
@@ -166,6 +180,13 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
     <div class="flex justify-between text-sm text-gray-600">
         <span>${escapeHtml(d.deduction_type)} ${d.note ? `(${escapeHtml(d.note)})` : ''}</span>
         <span class="text-red-600">- ${formatCurrency(d.amount, currency)}</span>
+    </div>
+  `).join('');
+
+  const creditsRows = displayedCredits.map(c => `
+    <div class="flex justify-between text-sm text-gray-600">
+        <span>${escapeHtml(c.credit_type)} ${c.note ? `(${escapeHtml(c.note)})` : ''}</span>
+        <span class="text-green-600">+ ${formatCurrency(c.amount, currency)}</span>
     </div>
   `).join('');
 
@@ -290,6 +311,17 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
                     <div class="flex justify-between font-medium text-gray-800 pt-1 border-t border-gray-100">
                          <span>Total Fixed Deductions</span>
                          <span class="text-red-600">- ${formatCurrency(totals.fixedDed, currency)}</span>
+                    </div>
+                </div>
+            ` : ''}
+
+            <!-- Credits/Additions -->
+            ${displayedCredits.length > 0 ? `
+                <div class="border-t border-gray-200 pt-2 space-y-1">
+                    ${creditsRows}
+                    <div class="flex justify-between font-medium text-gray-800 pt-1 border-t border-gray-100">
+                         <span>Total Credits/Additions</span>
+                         <span class="text-green-600">+ ${formatCurrency(totals.credits, currency)}</span>
                     </div>
                 </div>
             ` : ''}

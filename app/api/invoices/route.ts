@@ -28,6 +28,12 @@ interface DeductionInput {
   deduction_date?: string | null;
 }
 
+interface CreditInput {
+  credit_type: string;
+  amount: string | number;
+  note?: string | null;
+}
+
 export async function GET() {
   const { user, response, isSuperAdmin } = await requireApiAuth()
   if (response) return response
@@ -69,6 +75,10 @@ export async function POST(request: Request) {
       deductions: (body.deductions || []).map((d: DeductionInput) => ({
         ...d,
         amount: Number(d.amount)
+      })),
+      credits: (body.credits || []).map((c: CreditInput) => ({
+        ...c,
+        amount: Number(c.amount)
       }))
     }
 
@@ -94,7 +104,8 @@ export async function POST(request: Request) {
       currency,
       manual_net_pay,
       loads,
-      deductions
+      deductions,
+      credits
     } = parsed.data
 
     if (!isSuperAdmin && company_id !== user?.company_id) {
@@ -163,13 +174,21 @@ export async function POST(request: Request) {
             note: d.note ?? undefined,
             deduction_date: d.deduction_date ? new Date(d.deduction_date) : null
           }))
+        },
+        credits: {
+          create: (credits || []).map((c: CreditInput) => ({
+            credit_type: c.credit_type,
+            amount: parseFloat(c.amount.toString()),
+            note: c.note ?? undefined
+          }))
         }
       },
       include: {
         company: true,
         driver: true,
         loads: true,
-        deductions: true
+        deductions: true,
+        credits: true
       }
     })
 
