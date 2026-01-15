@@ -3,13 +3,6 @@ import { NextResponse } from 'next/server'
 import { buildInvoicePdfFilename, getInvoicePdfBuffer } from '@/lib/invoice-pdf'
 import { requireApiAuth } from '@/lib/api-auth'
 import { type InvoiceData } from '@/components/InvoiceTemplate'
-import {
-  buildAutoDeductionEntries,
-  calculateAutoDeductions,
-  getAutoDeductionConfigFromCompany,
-  mergeDeductionsWithAuto,
-  sumInsuranceDeductions
-} from '@/lib/auto-deductions'
 
 export const runtime = 'nodejs';
 
@@ -58,13 +51,9 @@ export async function GET(
         lte: invoice.week_end
       }
     },
-    select: { updated_at: true, deductions: true }
+    select: { updated_at: true }
   })
 
-  const ytdInsurance = ytdInvoices.reduce(
-    (sum, ytdInvoice) => sum + sumInsuranceDeductions(ytdInvoice.deductions),
-    0
-  )
   const latestUpdatedAt = ytdInvoices.reduce((latest, ytdInvoice) => {
     return ytdInvoice.updated_at > latest ? ytdInvoice.updated_at : latest
   }, invoice.updated_at)
@@ -83,10 +72,6 @@ export async function GET(
     })
   }
 
-  const autoConfig = getAutoDeductionConfigFromCompany(invoice.company)
-  const autoAmounts = calculateAutoDeductions(ytdInsurance, autoConfig)
-  const autoEntries = buildAutoDeductionEntries(autoAmounts, autoConfig)
-  const mergedDeductions = mergeDeductionsWithAuto(invoice.deductions, autoEntries)
   const filename = buildInvoicePdfFilename(
     invoice.driver?.name,
     invoice.due_date || invoice.invoice_date,
@@ -96,7 +81,7 @@ export async function GET(
   try {
     const pdfBuffer = await getInvoicePdfBuffer({
       ...invoiceData,
-      deductions: mergedDeductions,
+      deductions: invoice.deductions,
       id: invoice.id,
       updated_at: latestUpdatedAt
     })

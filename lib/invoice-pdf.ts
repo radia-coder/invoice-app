@@ -86,8 +86,24 @@ const buildInvoiceHtml = (invoiceData: InvoiceData) => {
         <title>Invoice ${invoiceData.invoice_number}</title>
         <style>${invoicePdfStyles}</style>
         <style>
-           @page { margin: 0; }
-           body { -webkit-print-color-adjust: exact; margin: 0; }
+           @page {
+             margin: 0;
+             size: A4;
+           }
+           body {
+             -webkit-print-color-adjust: exact;
+             margin: 0;
+             overflow: hidden;
+           }
+           #invoice-container {
+             page-break-inside: avoid;
+             page-break-after: avoid;
+             page-break-before: avoid;
+             overflow: hidden;
+           }
+           #invoice-container * {
+             page-break-inside: avoid;
+           }
         </style>
       </head>
       <body>
@@ -105,9 +121,11 @@ const getInvoiceContentHeight = async (page: Page) =>
   });
 
 const computePdfScale = (contentHeight: number) => {
-  const printableHeight = A4_HEIGHT_PX - PDF_MARGIN_PX * 4;
+  // Use more conservative margins to maximize content area
+  const printableHeight = A4_HEIGHT_PX - PDF_MARGIN_PX * 2;
   if (contentHeight <= printableHeight) return 1;
-  const scale = printableHeight / contentHeight;
+  // Add 5% buffer to ensure content definitely fits
+  const scale = (printableHeight * 0.95) / contentHeight;
   return Math.max(MIN_PDF_SCALE, Math.min(1, Number(scale.toFixed(3))));
 };
 
