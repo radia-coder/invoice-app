@@ -28,8 +28,18 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
     notFound();
   }
 
-  // Calculate YTD values
-  const yearStart = new Date(invoice.week_end.getFullYear(), 0, 1);
+  // Calculate YTD values - YTD year starts on December 21st
+  const weekEndDate = new Date(invoice.week_end);
+  const currentYear = weekEndDate.getFullYear();
+  const currentMonth = weekEndDate.getMonth(); // 0-11
+  const currentDay = weekEndDate.getDate();
+
+  // If we're in December on or after the 21st, year starts Dec 21 of current year
+  // Otherwise, year starts Dec 21 of previous year
+  const yearStart = (currentMonth === 11 && currentDay >= 21)
+    ? new Date(currentYear, 11, 21) // Dec 21 of current year
+    : new Date(currentYear - 1, 11, 21); // Dec 21 of previous year
+
   const ytdInvoices = await prisma.invoice.findMany({
     where: {
       driver_id: invoice.driver_id,
