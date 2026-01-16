@@ -6,6 +6,7 @@ import { notFound } from 'next/navigation';
 import { getSessionUser, isSuperAdmin } from '@/lib/auth';
 import InvoiceLifecycleActions from '@/components/InvoiceLifecycleActions';
 import InvoiceWhatsappShare from '@/components/InvoiceWhatsappShare';
+import { calculateInvoiceTotals } from '@/lib/invoice-calculations';
 
 export default async function InvoicePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -17,7 +18,8 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
       company: true,
       driver: true,
       loads: true,
-      deductions: true
+      deductions: true,
+      credits: true
     }
   });
 
@@ -26,13 +28,52 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
     notFound();
   }
 
+  // Calculate YTD values
+  const yearStart = new Date(invoice.week_end.getFullYear(), 0, 1);
+  const ytdInvoices = await prisma.invoice.findMany({
+    where: {
+      driver_id: invoice.driver_id,
+      week_end: {
+        gte: yearStart,
+        lte: invoice.week_end
+      }
+    },
+    include: {
+      loads: true,
+      deductions: true,
+      credits: true,
+      driver: true
+    },
+    orderBy: { week_end: 'asc' }
+  });
+
+  let ytdGrossIncome = 0;
+  let ytdNetPay = 0;
+
+  ytdInvoices.forEach((ytdInvoice) => {
+    const totals = calculateInvoiceTotals({
+      loads: ytdInvoice.loads,
+      deductions: ytdInvoice.deductions,
+      credits: ytdInvoice.credits || [],
+      percent: ytdInvoice.percent,
+      tax_percent: ytdInvoice.tax_percent || 0,
+      driver_type: ytdInvoice.driver.type,
+      manual_net_pay: ytdInvoice.manual_net_pay
+    });
+    ytdGrossIncome += totals.gross;
+    ytdNetPay += totals.net;
+  });
+
   // Cast to InvoiceData for template
   const invoiceData = {
     ...invoice,
     loads: invoice.loads.map(l => ({ ...l, amount: l.amount })),
     deductions: invoice.deductions.map(d => ({ ...d, amount: d.amount })),
+    credits: invoice.credits,
     percent: invoice.percent,
     manual_net_pay: invoice.manual_net_pay,
+    ytdGrossIncome,
+    ytdNetPay
   };
 
   return (
