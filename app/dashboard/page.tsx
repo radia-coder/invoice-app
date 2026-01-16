@@ -82,7 +82,8 @@ export default async function Home({
         company: true,
         driver: true,
         loads: true,
-        deductions: true
+        deductions: true,
+        credits: true
       },
       orderBy: { created_at: 'desc' },
       skip: (page - 1) * PAGE_SIZE,
@@ -119,7 +120,7 @@ export default async function Home({
             lte: new Date(yearBounds.max, 11, 31, 23, 59, 59, 999)
           }
         },
-        include: { deductions: true }
+        include: { deductions: true, credits: true }
       })
     : [];
 
@@ -219,9 +220,11 @@ export default async function Home({
               const totals = calculateInvoiceTotals({
                 loads: invoice.loads,
                 deductions: mergedDeductions,
+                credits: invoice.credits,
                 percent: invoice.percent,
                 tax_percent: invoice.tax_percent || 0,
-                driver_type: invoice.driver.type
+                driver_type: invoice.driver.type,
+                manual_net_pay: invoice.manual_net_pay
               });
 
               const formatMoney = (amount: number) => {

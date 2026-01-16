@@ -7,6 +7,11 @@ interface Deduction {
   amount: number;
 }
 
+interface Credit {
+  name: string;
+  amount: number;
+}
+
 interface WeeklySummaryData {
   id: number;
   weekStart: Date;
@@ -21,6 +26,8 @@ interface WeeklySummaryData {
   subtotalAfterPercent: number;
   fixedDeductions: Deduction[];
   totalFixedDeductions: number;
+  credits: Credit[];
+  totalCredits: number;
   taxPercent: number;
   taxAmount: number;
   netPay: number;
@@ -135,6 +142,25 @@ export default function WeeklySummaryCard({ summary }: WeeklySummaryCardProps) {
           </>
         )}
 
+        {/* Credits Section */}
+        {summary.credits.length > 0 && (
+          <>
+            <div className="border-t border-zinc-800 my-3" />
+            <div className="space-y-2">
+              {summary.credits.map((credit, index) => (
+                <div key={index} className="flex justify-between text-sm">
+                  <span className="text-zinc-400">{credit.name}</span>
+                  <span className="text-green-400 text-right">+ {formatMoney(credit.amount)}</span>
+                </div>
+              ))}
+              <div className="flex justify-between text-sm font-medium pt-1">
+                <span className="text-zinc-300">Total Credits</span>
+                <span className="text-green-400 text-right">+ {formatMoney(summary.totalCredits)}</span>
+              </div>
+            </div>
+          </>
+        )}
+
         {/* Tax */}
         {summary.taxPercent > 0 && (
           <div className="flex justify-between text-sm">
@@ -153,4 +179,4 @@ export default function WeeklySummaryCard({ summary }: WeeklySummaryCardProps) {
   );
 }
 
-export type { WeeklySummaryData, Deduction };
+export type { WeeklySummaryData, Deduction, Credit };

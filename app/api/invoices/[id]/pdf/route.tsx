@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { buildInvoicePdfFilename, getInvoicePdfBuffer } from '@/lib/invoice-pdf'
 import { requireApiAuth } from '@/lib/api-auth'
 import { type InvoiceData } from '@/components/InvoiceTemplate'
+import { calculateInvoiceTotals } from '@/lib/invoice-calculations'
 
 export const runtime = 'nodejs';
 
@@ -21,7 +22,8 @@ export async function GET(
       company: true,
       driver: true,
       loads: true,
-      deductions: true
+      deductions: true,
+      credits: true
     }
   })
 
@@ -33,15 +35,6 @@ export async function GET(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const invoiceData: InvoiceData = {
-    ...invoice,
-    // Ensure nested objects are compatible
-    company: invoice.company,
-    driver: invoice.driver,
-    loads: invoice.loads,
-    deductions: invoice.deductions
-  }
-
   const yearStart = new Date(invoice.week_end.getFullYear(), 0, 1)
   const ytdInvoices = await prisma.invoice.findMany({
     where: {
@@ -51,8 +44,44 @@ export async function GET(
         lte: invoice.week_end
       }
     },
-    select: { updated_at: true }
+    include: {
+      loads: true,
+      deductions: true,
+      credits: true,
+      driver: true
+    },
+    orderBy: { week_end: 'asc' }
   })
+
+  // Calculate YTD Gross Income and YTD Net Pay
+  let ytdGrossIncome = 0
+  let ytdNetPay = 0
+
+  ytdInvoices.forEach((ytdInvoice) => {
+    const totals = calculateInvoiceTotals({
+      loads: ytdInvoice.loads,
+      deductions: ytdInvoice.deductions,
+      credits: ytdInvoice.credits || [],
+      percent: ytdInvoice.percent,
+      tax_percent: ytdInvoice.tax_percent || 0,
+      driver_type: ytdInvoice.driver.type,
+      manual_net_pay: ytdInvoice.manual_net_pay
+    })
+    ytdGrossIncome += totals.gross
+    ytdNetPay += totals.net
+  })
+
+  const invoiceData: InvoiceData = {
+    ...invoice,
+    // Ensure nested objects are compatible
+    company: invoice.company,
+    driver: invoice.driver,
+    loads: invoice.loads,
+    deductions: invoice.deductions,
+    credits: invoice.credits,
+    ytdGrossIncome,
+    ytdNetPay
+  }
 
   const latestUpdatedAt = ytdInvoices.reduce((latest, ytdInvoice) => {
     return ytdInvoice.updated_at > latest ? ytdInvoice.updated_at : latest
@@ -82,8 +111,11 @@ export async function GET(
     const pdfBuffer = await getInvoicePdfBuffer({
       ...invoiceData,
       deductions: invoice.deductions,
+      credits: invoice.credits,
       id: invoice.id,
-      updated_at: latestUpdatedAt
+      updated_at: latestUpdatedAt,
+      ytdGrossIncome,
+      ytdNetPay
     })
 
     return new NextResponse(pdfBuffer as BodyInit, {

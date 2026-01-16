@@ -43,11 +43,11 @@ export default async function ReportsPage({
   const [invoices, weeklySummaryInvoices, weeklySummaryCount, companies, drivers] = await Promise.all([
     prisma.invoice.findMany({
       where,
-      include: { company: true, driver: true, loads: true, deductions: true }
+      include: { company: true, driver: true, loads: true, deductions: true, credits: true }
     }),
     prisma.invoice.findMany({
       where,
-      include: { company: true, driver: true, loads: true, deductions: true },
+      include: { company: true, driver: true, loads: true, deductions: true, credits: true },
       orderBy: [{ week_end: 'desc' }, { created_at: 'desc' }],
       skip: (weeklySummaryPage - 1) * WEEKLY_SUMMARY_PAGE_SIZE,
       take: WEEKLY_SUMMARY_PAGE_SIZE
@@ -70,15 +70,19 @@ export default async function ReportsPage({
     const invoiceTotals = calculateInvoiceTotals({
       loads: invoice.loads,
       deductions: invoice.deductions,
+      credits: invoice.credits,
       percent: invoice.percent,
       tax_percent: invoice.tax_percent || 0,
-      driver_type: invoice.driver.type
+      driver_type: invoice.driver.type,
+      manual_net_pay: invoice.manual_net_pay
     });
 
     const isOwnerOperator = invoice.driver.type !== 'Company Driver';
     const subtotalAfterPercent = isOwnerOperator
       ? invoiceTotals.gross - invoiceTotals.percentAmount
       : invoiceTotals.percentAmount;
+
+    const totalCredits = (invoice.credits || []).reduce((sum, c) => sum + c.amount, 0);
 
     return {
       id: invoice.id,
@@ -97,6 +101,11 @@ export default async function ReportsPage({
         amount: d.amount
       })),
       totalFixedDeductions: invoiceTotals.fixedDed,
+      credits: (invoice.credits || []).map((c) => ({
+        name: c.credit_type + (c.note ? ` (${c.note})` : ''),
+        amount: c.amount
+      })),
+      totalCredits,
       taxPercent: invoice.tax_percent || 0,
       taxAmount: invoiceTotals.taxAmount,
       netPay: invoiceTotals.net,
@@ -119,9 +128,11 @@ export default async function ReportsPage({
     const invoiceTotals = calculateInvoiceTotals({
       loads: invoice.loads,
       deductions: invoice.deductions,
+      credits: invoice.credits,
       percent: invoice.percent,
       tax_percent: invoice.tax_percent || 0,
-      driver_type: invoice.driver.type
+      driver_type: invoice.driver.type,
+      manual_net_pay: invoice.manual_net_pay
     });
 
     totals.gross += invoiceTotals.gross;
