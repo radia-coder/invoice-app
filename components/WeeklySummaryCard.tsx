@@ -142,7 +142,7 @@ export default function WeeklySummaryCard({ summary }: WeeklySummaryCardProps) {
           </>
         )}
 
-        {/* Credits Section */}
+        {/* Additions Section */}
         {summary.credits.length > 0 && (
           <>
             <div className="border-t border-zinc-800 my-3" />
@@ -154,7 +154,7 @@ export default function WeeklySummaryCard({ summary }: WeeklySummaryCardProps) {
                 </div>
               ))}
               <div className="flex justify-between text-sm font-medium pt-1">
-                <span className="text-zinc-300">Total Credits</span>
+                <span className="text-zinc-300">Total Additions</span>
                 <span className="text-green-400 text-right">+ {formatMoney(summary.totalCredits)}</span>
               </div>
             </div>

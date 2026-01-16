@@ -317,12 +317,12 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
                 </div>
             ` : ''}
 
-            <!-- Credits/Additions -->
+            <!-- Additions -->
             ${displayedCredits.length > 0 ? `
                 <div class="border-t border-gray-200 pt-2 space-y-1">
                     ${creditsRows}
                     <div class="flex justify-between font-medium text-gray-800 pt-1 border-t border-gray-100">
-                         <span>Total Credits/Additions</span>
+                         <span>Total Additions</span>
                          <span class="text-green-600">+ ${formatCurrency(totals.credits, currency)}</span>
                     </div>
                 </div>

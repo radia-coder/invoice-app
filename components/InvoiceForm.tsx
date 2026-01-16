@@ -1101,10 +1101,10 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
             </div>
           </div>
 
-          {/* Credits/Additions */}
+          {/* Additions */}
           <div>
             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium leading-6 text-white">Credits / Additions</h3>
+                <h3 className="text-lg font-medium leading-6 text-white">Additions</h3>
                 <div className="flex gap-2">
                     <button type="button" onClick={() => appendCredit({ credit_type: creditTypes[0]?.name || 'Advance', amount: 0, note: '' })} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-emerald-400 bg-emerald-900/20 hover:bg-emerald-900/30 transition-colors">
                         <Plus className="w-4 h-4 mr-1" /> Add
@@ -1263,7 +1263,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                     <span className="text-red-400">-{formatMoney(fixedDed)}</span>
                 </div>
                 <div className="flex justify-between">
-                    <span className="text-zinc-400">Credits / Additions</span>
+                    <span className="text-zinc-400">Additions</span>
                     <span className="text-emerald-400">+{formatMoney(totalCredits)}</span>
                 </div>
                 <div className="flex justify-between items-center">
