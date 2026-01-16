@@ -67,6 +67,7 @@ export async function GET(
   // Calculate YTD Gross Income and YTD Net Pay
   let ytdGrossIncome = 0
   let ytdNetPay = 0
+  let ytdCredit = 0
 
   ytdInvoices.forEach((ytdInvoice) => {
     const totals = calculateInvoiceTotals({
@@ -80,6 +81,10 @@ export async function GET(
     })
     ytdGrossIncome += totals.gross
     ytdNetPay += totals.net
+    ytdCredit += (ytdInvoice.credits || []).reduce((sum, credit) => {
+      const amount = credit.amount || 0
+      return amount < 0 ? sum + Math.abs(amount) : sum
+    }, 0)
   })
 
   const invoiceData: InvoiceData = {
@@ -91,7 +96,8 @@ export async function GET(
     deductions: invoice.deductions,
     credits: invoice.credits,
     ytdGrossIncome,
-    ytdNetPay
+    ytdNetPay,
+    ytdCredit
   }
 
   const latestUpdatedAt = ytdInvoices.reduce((latest, ytdInvoice) => {
@@ -126,7 +132,8 @@ export async function GET(
       id: invoice.id,
       updated_at: latestUpdatedAt,
       ytdGrossIncome,
-      ytdNetPay
+      ytdNetPay,
+      ytdCredit
     })
 
     return new NextResponse(pdfBuffer as BodyInit, {

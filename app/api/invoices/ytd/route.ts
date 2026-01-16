@@ -47,6 +47,7 @@ const fetchYtdBaseTotals = async ({ driverId, weekEnd, excludeInvoiceId }: YtdBa
 
   let ytdGrossIncome = 0;
   let ytdNetPay = 0;
+  let ytdCredit = 0;
 
   ytdInvoices.forEach((invoice) => {
     const totals = calculateInvoiceTotals({
@@ -60,9 +61,13 @@ const fetchYtdBaseTotals = async ({ driverId, weekEnd, excludeInvoiceId }: YtdBa
     });
     ytdGrossIncome += totals.gross;
     ytdNetPay += totals.net;
+    ytdCredit += (invoice.credits || []).reduce((sum, credit) => {
+      const amount = credit.amount || 0;
+      return amount < 0 ? sum + Math.abs(amount) : sum;
+    }, 0);
   });
 
-  return { ytdGrossIncome, ytdNetPay };
+  return { ytdGrossIncome, ytdNetPay, ytdCredit };
 };
 
 export async function GET(request: Request) {
@@ -154,8 +159,17 @@ export async function POST(request: Request) {
     manual_net_pay: invoicePayload.manual_net_pay ?? null
   });
 
+  const currentCredits = (invoicePayload.credits || []).reduce(
+    (sum: number, credit: { amount: number | string }) => {
+      const amount = Number(credit.amount) || 0;
+      return amount < 0 ? sum + Math.abs(amount) : sum;
+    },
+    0
+  );
+
   return NextResponse.json({
     ytdGrossIncome: baseTotals.ytdGrossIncome + currentTotals.gross,
-    ytdNetPay: baseTotals.ytdNetPay + currentTotals.net
+    ytdNetPay: baseTotals.ytdNetPay + currentTotals.net,
+    ytdCredit: baseTotals.ytdCredit + currentCredits
   });
 }

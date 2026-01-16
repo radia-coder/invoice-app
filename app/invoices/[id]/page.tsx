@@ -59,6 +59,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
 
   let ytdGrossIncome = 0;
   let ytdNetPay = 0;
+  let ytdCredit = 0;
 
   ytdInvoices.forEach((ytdInvoice) => {
     const totals = calculateInvoiceTotals({
@@ -72,6 +73,10 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
     });
     ytdGrossIncome += totals.gross;
     ytdNetPay += totals.net;
+    ytdCredit += (ytdInvoice.credits || []).reduce((sum, credit) => {
+      const amount = credit.amount || 0;
+      return amount < 0 ? sum + Math.abs(amount) : sum;
+    }, 0);
   });
 
   // Cast to InvoiceData for template
@@ -83,7 +88,8 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
     percent: invoice.percent,
     manual_net_pay: invoice.manual_net_pay,
     ytdGrossIncome,
-    ytdNetPay
+    ytdNetPay,
+    ytdCredit
   };
 
   return (

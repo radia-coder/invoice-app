@@ -26,6 +26,8 @@ interface WeeklySummaryData {
   subtotalAfterPercent: number;
   fixedDeductions: Deduction[];
   totalFixedDeductions: number;
+  additions: Credit[];
+  totalAdditions: number;
   credits: Credit[];
   totalCredits: number;
   taxPercent: number;
@@ -143,6 +145,25 @@ export default function WeeklySummaryCard({ summary }: WeeklySummaryCardProps) {
         )}
 
         {/* Additions Section */}
+        {summary.additions.length > 0 && (
+          <>
+            <div className="border-t border-zinc-800 my-3" />
+            <div className="space-y-2">
+              {summary.additions.map((addition, index) => (
+                <div key={index} className="flex justify-between text-sm">
+                  <span className="text-zinc-400">{addition.name}</span>
+                  <span className="text-green-400 text-right">+ {formatMoney(addition.amount)}</span>
+                </div>
+              ))}
+              <div className="flex justify-between text-sm font-medium pt-1">
+                <span className="text-zinc-300">Total Additions</span>
+                <span className="text-green-400 text-right">+ {formatMoney(summary.totalAdditions)}</span>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Credits Section */}
         {summary.credits.length > 0 && (
           <>
             <div className="border-t border-zinc-800 my-3" />
@@ -150,12 +171,12 @@ export default function WeeklySummaryCard({ summary }: WeeklySummaryCardProps) {
               {summary.credits.map((credit, index) => (
                 <div key={index} className="flex justify-between text-sm">
                   <span className="text-zinc-400">{credit.name}</span>
-                  <span className="text-green-400 text-right">+ {formatMoney(credit.amount)}</span>
+                  <span className="text-red-400 text-right">- {formatMoney(credit.amount)}</span>
                 </div>
               ))}
               <div className="flex justify-between text-sm font-medium pt-1">
-                <span className="text-zinc-300">Total Additions</span>
-                <span className="text-green-400 text-right">+ {formatMoney(summary.totalCredits)}</span>
+                <span className="text-zinc-300">Total Credits</span>
+                <span className="text-red-400 text-right">- {formatMoney(summary.totalCredits)}</span>
               </div>
             </div>
           </>

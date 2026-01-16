@@ -61,6 +61,7 @@ interface CreditItem {
   credit_type: string;
   amount: number | string;
   note?: string;
+  direction?: 'addition' | 'credit';
 }
 
 interface InvoiceFormData {
@@ -146,7 +147,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
   const [creditTypeError, setCreditTypeError] = useState('');
   const [showEditNetPay, setShowEditNetPay] = useState(false);
   const [editNetPayValue, setEditNetPayValue] = useState('');
-  const [ytdTotals, setYtdTotals] = useState<{ gross: number; net: number } | null>(null);
+  const [ytdTotals, setYtdTotals] = useState<{ gross: number; net: number; credit: number } | null>(null);
   const requiredDateMessage = 'Please fill all required dates.';
 
   // Format date helper
@@ -187,11 +188,15 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
             note: d.note || '',
             deduction_date: formatDate(d.deduction_date || '')
           })),
-        credits: (initialData.credits || []).map((c) => ({
-          credit_type: c.credit_type,
-          amount: c.amount,
-          note: c.note || ''
-        }))
+        credits: (initialData.credits || []).map((c) => {
+          const amount = Number(c.amount) || 0;
+          return {
+            credit_type: c.credit_type,
+            amount: Math.abs(amount),
+            note: c.note || '',
+            direction: amount < 0 ? 'credit' : 'addition'
+          };
+        })
       };
     }
 
@@ -266,6 +271,14 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
   const visibleDeductionTypes = deductionTypes.filter(
     (type) => type.name.trim().toLowerCase() !== 'date del'
   );
+  const creditRows = creditFields.map((field, index) => {
+    const entry = watchedCredits?.[index];
+    const amount = Number(entry?.amount) || 0;
+    const direction = entry?.direction || (amount < 0 ? 'credit' : 'addition');
+    return { field, index, amount, direction };
+  });
+  const additionRows = creditRows.filter((row) => row.direction !== 'credit');
+  const creditDeductionRows = creditRows.filter((row) => row.direction === 'credit');
 
   const selectedDriver = useMemo(() => {
     const id = Number(selectedDriverId);
@@ -295,7 +308,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
       invoice: {
         loads: (watchedLoads || []).map((load) => ({ amount: Number(load.amount) || 0 })),
         deductions: (watchedDeductions || []).map((deduction) => ({ amount: Number(deduction.amount) || 0 })),
-        credits: (watchedCredits || []).map((credit) => ({ amount: Number(credit.amount) || 0 })),
+        credits: buildSignedCredits(watchedCredits || []),
         percent: Number(watchedPercent) || 0,
         tax_percent: Number(watchedTaxPercent) || 0,
         manual_net_pay: watchedManualNetPay ?? null
@@ -312,7 +325,8 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
       .then((data) => {
         setYtdTotals({
           gross: Number(data?.ytdGrossIncome) || 0,
-          net: Number(data?.ytdNetPay) || 0
+          net: Number(data?.ytdNetPay) || 0,
+          credit: Number(data?.ytdCredit) || 0
         });
       })
       .catch((error) => {
@@ -554,7 +568,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
         setNewCreditTypeName('');
         setShowNewCreditTypeInput(false);
         // Append a new credit with this type
-        appendCredit({ credit_type: newType.name, amount: 0, note: '' });
+        appendCredit({ credit_type: newType.name, amount: 0, note: '', direction: 'addition' });
         setCreditTypeMessage('Credit type added.');
       } else if (res.status === 409) {
         setCreditTypeError('This credit type already exists.');
@@ -609,7 +623,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
 
   // Helper to normalize location: "Columbus, Ohio" -> "Columbus, OH"
   const normalizeLocation = (location: string): string => {
-    if (!location) return location;
+      if (!location) return location;
     const commaIndex = location.lastIndexOf(',');
     if (commaIndex === -1) {
       const normalized = normalizeState(location);
@@ -621,6 +635,17 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
     if (!normalized) return location;
     return city ? `${city}, ${normalized}` : normalized;
   };
+
+  const buildSignedCredits = (credits: CreditItem[]) =>
+    credits.map((credit) => {
+      const amount = Number(credit.amount) || 0;
+      const signedAmount = credit.direction === 'credit' ? -Math.abs(amount) : Math.abs(amount);
+      return {
+        credit_type: credit.credit_type,
+        amount: signedAmount,
+        note: credit.note || null
+      };
+    });
 
   const onSubmit = async (data: InvoiceFormData) => {
     setSubmitting(true);
@@ -653,7 +678,8 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
             amount: parseFloat(d.amount.toString()),
             note: d.note || null,
             deduction_date: d.deduction_date || null
-          }))
+          })),
+        credits: buildSignedCredits(data.credits || [])
       };
 
       const url = initialData ? `/api/invoices/${initialData.id}` : '/api/invoices';
@@ -766,11 +792,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
           amount: Number(d.amount),
           note: d.note
       })),
-      credits: watchedCredits.map((c: CreditItem) => ({
-          credit_type: c.credit_type,
-          amount: Number(c.amount),
-          note: c.note
-      })),
+      credits: buildSignedCredits(watchedCredits || []),
       percent: Number(watchedPercent),
       tax_percent: Number(watchedTaxPercent),
       manual_net_pay: watch('manual_net_pay'),
@@ -779,7 +801,8 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
       currency: 'USD',
       notes: watch('notes'),
       ytdGrossIncome: ytdTotals?.gross,
-      ytdNetPay: ytdTotals?.net
+      ytdNetPay: ytdTotals?.net,
+      ytdCredit: ytdTotals?.credit
     };
   };
 
@@ -820,16 +843,23 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
   const taxPercentValue = Number(watchedTaxPercent) || 0;
   const taxAmount = totalLoad * (taxPercentValue / 100);
   const fixedDed = watchedDeductions?.reduce((sum: number, d: DeductionItem) => sum + (Number(d.amount) || 0), 0) || 0;
-  const totalCredits = watchedCredits?.reduce((sum: number, c: CreditItem) => sum + (Number(c.amount) || 0), 0) || 0;
+  const totalAdditions = watchedCredits?.reduce((sum: number, c: CreditItem) => {
+    const amount = Math.abs(Number(c.amount) || 0);
+    return c.direction === 'credit' ? sum : sum + amount;
+  }, 0) || 0;
+  const totalCredits = watchedCredits?.reduce((sum: number, c: CreditItem) => {
+    const amount = Math.abs(Number(c.amount) || 0);
+    return c.direction === 'credit' ? sum + amount : sum;
+  }, 0) || 0;
 
   // Get selected driver to determine calculation type
   const isCompanyDriver = selectedDriver?.type === 'Company Driver';
 
-  // Company Driver: percent is driver pay, net = driverPay - fixedDeductions + credits
-  // Owner-Operator: percent is company cut, net = gross - companyCut - fixedDeductions + credits
+  // Company Driver: percent is driver pay, net = driverPay - fixedDeductions + additions - credits
+  // Owner-Operator: percent is company cut, net = gross - companyCut - fixedDeductions + additions - credits
   const calculatedNet = isCompanyDriver
-    ? percentAmount - fixedDed + totalCredits - taxAmount
-    : totalLoad - percentAmount - fixedDed + totalCredits - taxAmount;
+    ? percentAmount - fixedDed + totalAdditions - totalCredits - taxAmount
+    : totalLoad - percentAmount - fixedDed + totalAdditions - totalCredits - taxAmount;
 
   // Use manual net pay if set, otherwise use calculated
   const manualNetPay = watch('manual_net_pay');
@@ -1043,12 +1073,12 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-zinc-800 pt-6">
+      <div className="space-y-6 border-t border-zinc-800 pt-6">
           {/* Deductions */}
-          <div>
-            <div className="flex justify-between items-center mb-4">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 space-y-4">
+            <div className="flex items-center justify-between gap-3 border-b border-zinc-800 pb-3">
                 <h3 className="text-lg font-medium leading-6 text-white">Fixed Deductions</h3>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                     <button type="button" onClick={() => appendDeduction({ deduction_type: visibleDeductionTypes[0]?.name || 'Other', amount: 0, note: '', deduction_date: '' })} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-[#7a67e7] bg-[#7a67e7]/10 hover:bg-[#7a67e7]/20 transition-colors">
                         <Plus className="w-4 h-4 mr-1" /> Add
                     </button>
@@ -1068,7 +1098,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
 
             {/* New Type Input */}
             {showNewTypeInput && (
-              <div className="mb-4 p-4 bg-zinc-800 rounded-lg border border-zinc-700">
+              <div className="p-4 bg-zinc-800 rounded-lg border border-zinc-700">
                 <div className="flex gap-2 items-center">
                   <input
                     type="text"
@@ -1108,7 +1138,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
             )}
 
             {showDeleteTypeInput ? (
-              <div className="mb-4 p-4 bg-zinc-800 rounded-lg border border-zinc-700">
+              <div className="p-4 bg-zinc-800 rounded-lg border border-zinc-700">
                 <div className="flex gap-2 items-center">
                   <select
                     className="flex-1 border-zinc-600 bg-zinc-700 text-white rounded-lg shadow-sm border p-2.5 sm:text-sm focus:ring-2 focus:ring-red-500"
@@ -1141,9 +1171,15 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
             ) : null}
 
             <div className="space-y-2">
+                <div className="grid grid-cols-[160px_110px_1fr_36px] gap-2 text-[11px] uppercase tracking-wider text-zinc-500">
+                    <span>Type</span>
+                    <span>Amount</span>
+                    <span>Note</span>
+                    <span className="text-right"> </span>
+                </div>
                 {deductionFields.map((field, index) => (
-                    <div key={field.id} className="flex gap-2 items-start">
-                        <select {...register(`deductions.${index}.deduction_type` as const)} className="block w-[140px] flex-none border-zinc-700 bg-zinc-800 text-white rounded-lg shadow-sm border p-2.5 sm:text-sm">
+                    <div key={field.id} className="grid grid-cols-[160px_110px_1fr_36px] gap-2 items-center">
+                        <select {...register(`deductions.${index}.deduction_type` as const)} className="block w-full border-zinc-700 bg-zinc-800 text-white rounded-lg shadow-sm border p-2.5 sm:text-sm">
                             {visibleDeductionTypes.length > 0 ? (
                               visibleDeductionTypes.map(dt => (
                                 <option key={dt.id} value={dt.name}>{dt.name}</option>
@@ -1158,12 +1194,12 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                               </>
                             )}
                         </select>
-                        <input type="number" step="0.01" {...register(`deductions.${index}.amount` as const)} placeholder="Amount" className="block w-[100px] flex-none border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm border p-2.5 sm:text-sm" />
-                        <input type="text" {...register(`deductions.${index}.note` as const)} placeholder="Note" className="block flex-1 min-w-[80px] border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm border p-2.5 sm:text-sm" />
+                        <input type="number" step="0.01" {...register(`deductions.${index}.amount` as const)} placeholder="0.00" className="block w-full border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm border p-2.5 sm:text-sm" />
+                        <input type="text" {...register(`deductions.${index}.note` as const)} placeholder="Optional note" className="block w-full border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm border p-2.5 sm:text-sm" />
                         <button
                           type="button"
                           onClick={() => removeDeduction(index)}
-                          className="mt-0.5 inline-flex items-center justify-center rounded-md bg-[#301b1f] p-2 text-red-300 hover:bg-[#3a2428] transition-colors"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-[#301b1f] text-red-300 hover:bg-[#3a2428] transition-colors"
                           title="Remove deduction"
                         >
                           <Trash className="w-4 h-4" />
@@ -1173,12 +1209,13 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
             </div>
           </div>
 
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {/* Additions */}
-          <div>
-            <div className="flex justify-between items-center mb-4">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 space-y-4">
+            <div className="flex items-center justify-between gap-3 border-b border-zinc-800 pb-3">
                 <h3 className="text-lg font-medium leading-6 text-white">Additions</h3>
-                <div className="flex gap-2">
-                    <button type="button" onClick={() => appendCredit({ credit_type: creditTypes[0]?.name || 'Advance', amount: 0, note: '' })} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-emerald-400 bg-emerald-900/20 hover:bg-emerald-900/30 transition-colors">
+                <div className="flex flex-wrap items-center gap-2">
+                    <button type="button" onClick={() => appendCredit({ credit_type: creditTypes[0]?.name || 'Advance', amount: 0, note: '', direction: 'addition' })} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-emerald-400 bg-emerald-900/20 hover:bg-emerald-900/30 transition-colors">
                         <Plus className="w-4 h-4 mr-1" /> Add
                     </button>
                     <button type="button" onClick={() => setShowNewCreditTypeInput(true)} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-emerald-400 bg-emerald-900/20 hover:bg-emerald-900/30 transition-colors">
@@ -1195,84 +1232,143 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                 </div>
             </div>
 
-            {/* New Credit Type Input */}
-            {showNewCreditTypeInput && (
-              <div className="mb-4 p-4 bg-zinc-800 rounded-lg border border-zinc-700">
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="text"
-                    value={newCreditTypeName}
-                    onChange={(e) => setNewCreditTypeName(e.target.value)}
-                    placeholder="e.g., Per Diem, Tool Reimbursement"
-                    className="flex-1 border-zinc-600 bg-zinc-700 text-white placeholder-zinc-400 rounded-lg shadow-sm border p-2.5 sm:text-sm focus:ring-2 focus:ring-emerald-500"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleCreateNewCreditType();
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={handleCreateNewCreditType}
-                    disabled={creatingCreditType}
-                    className="px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 disabled:opacity-50 transition-colors"
-                  >
-                    {creatingCreditType ? 'Saving...' : 'Save'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowNewCreditTypeInput(false);
-                      setNewCreditTypeName('');
-                    }}
-                    className="px-4 py-2.5 bg-zinc-600 text-white rounded-lg text-sm hover:bg-zinc-500 transition-colors"
-                  >
-                    Cancel
-                  </button>
+              {/* New Credit Type Input */}
+              {showNewCreditTypeInput && (
+                <div className="p-4 bg-zinc-800 rounded-lg border border-zinc-700">
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="text"
+                      value={newCreditTypeName}
+                      onChange={(e) => setNewCreditTypeName(e.target.value)}
+                      placeholder="e.g., Per Diem, Tool Reimbursement"
+                      className="flex-1 border-zinc-600 bg-zinc-700 text-white placeholder-zinc-400 rounded-lg shadow-sm border p-2.5 sm:text-sm focus:ring-2 focus:ring-emerald-500"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleCreateNewCreditType();
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCreateNewCreditType}
+                      disabled={creatingCreditType}
+                      className="px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                    >
+                      {creatingCreditType ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowNewCreditTypeInput(false);
+                        setNewCreditTypeName('');
+                      }}
+                      className="px-4 py-2.5 bg-zinc-600 text-white rounded-lg text-sm hover:bg-zinc-500 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  <p className="mt-2 text-xs text-zinc-400">Enter a new credit type name (e.g., Per Diem, Tool Allowance)</p>
+                  {creditTypeError ? <p className="mt-2 text-xs text-red-400">{creditTypeError}</p> : null}
                 </div>
-                <p className="mt-2 text-xs text-zinc-400">Enter a new credit type name (e.g., Per Diem, Tool Allowance)</p>
-                {creditTypeError ? <p className="mt-2 text-xs text-red-400">{creditTypeError}</p> : null}
-              </div>
-            )}
+              )}
 
-            {showDeleteCreditTypeInput ? (
-              <div className="mb-4 p-4 bg-zinc-800 rounded-lg border border-zinc-700">
-                <div className="flex gap-2 items-center">
-                  <select
-                    className="flex-1 border-zinc-600 bg-zinc-700 text-white rounded-lg shadow-sm border p-2.5 sm:text-sm focus:ring-2 focus:ring-red-500"
-                    defaultValue=""
-                    onChange={(event) => {
-                      const selected = creditTypes.find((type) => type.id === Number(event.target.value));
-                      if (selected) {
-                        handleDeleteCreditType(selected);
-                        event.currentTarget.value = '';
-                      }
-                    }}
-                  >
-                    <option value="" disabled>Select custom type to delete</option>
-                    {creditTypes.filter((type) => !type.is_default).map((type) => (
-                      <option key={type.id} value={type.id}>{type.name}</option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => setShowDeleteCreditTypeInput(false)}
-                    className="px-4 py-2.5 bg-zinc-600 text-white rounded-lg text-sm hover:bg-zinc-500 transition-colors"
-                  >
-                    Close
-                  </button>
+              {showDeleteCreditTypeInput ? (
+                <div className="p-4 bg-zinc-800 rounded-lg border border-zinc-700">
+                  <div className="flex gap-2 items-center">
+                    <select
+                      className="flex-1 border-zinc-600 bg-zinc-700 text-white rounded-lg shadow-sm border p-2.5 sm:text-sm focus:ring-2 focus:ring-red-500"
+                      defaultValue=""
+                      onChange={(event) => {
+                        const selected = creditTypes.find((type) => type.id === Number(event.target.value));
+                        if (selected) {
+                          handleDeleteCreditType(selected);
+                          event.currentTarget.value = '';
+                        }
+                      }}
+                    >
+                      <option value="" disabled>Select custom type to delete</option>
+                      {creditTypes.filter((type) => !type.is_default).map((type) => (
+                        <option key={type.id} value={type.id}>{type.name}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteCreditTypeInput(false)}
+                      className="px-4 py-2.5 bg-zinc-600 text-white rounded-lg text-sm hover:bg-zinc-500 transition-colors"
+                    >
+                      Close
+                    </button>
+                  </div>
+                  {creditTypeMessage ? <p className="mt-2 text-xs text-emerald-400">{creditTypeMessage}</p> : null}
+                  {creditTypeError ? <p className="mt-2 text-xs text-red-400">{creditTypeError}</p> : null}
+                  {deletingCreditTypeId ? <p className="mt-2 text-xs text-zinc-400">Removing...</p> : null}
                 </div>
-                {creditTypeMessage ? <p className="mt-2 text-xs text-emerald-400">{creditTypeMessage}</p> : null}
-                {creditTypeError ? <p className="mt-2 text-xs text-red-400">{creditTypeError}</p> : null}
-                {deletingCreditTypeId ? <p className="mt-2 text-xs text-zinc-400">Removing...</p> : null}
+              ) : null}
+
+              <div className="space-y-2">
+                  <div className="grid grid-cols-[160px_110px_1fr_36px] gap-2 text-[11px] uppercase tracking-wider text-zinc-500">
+                      <span>Type</span>
+                      <span>Amount</span>
+                      <span>Note</span>
+                      <span className="text-right"> </span>
+                  </div>
+                  {additionRows.map(({ field, index }) => (
+                      <div key={field.id} className="grid grid-cols-[160px_110px_1fr_36px] gap-2 items-center">
+                          <input type="hidden" {...register(`credits.${index}.direction` as const)} />
+                          <select {...register(`credits.${index}.credit_type` as const)} className="block w-full border-zinc-700 bg-zinc-800 text-white rounded-lg shadow-sm border p-2.5 sm:text-sm">
+                              {creditTypes.length > 0 ? (
+                                creditTypes.map(ct => (
+                                  <option key={ct.id} value={ct.name}>{ct.name}</option>
+                                ))
+                              ) : (
+                                <>
+                                  <option value="Advance">Advance</option>
+                                  <option value="Bonus">Bonus</option>
+                                  <option value="Reimbursement">Reimbursement</option>
+                                  <option value="Detention">Detention</option>
+                                  <option value="Layover">Layover</option>
+                                <option value="Other">Other</option>
+                              </>
+                            )}
+                          </select>
+                          <input type="number" step="0.01" {...register(`credits.${index}.amount` as const)} placeholder="0.00" className="block w-full border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm border p-2.5 sm:text-sm" />
+                          <input type="text" {...register(`credits.${index}.note` as const)} placeholder="Optional note" className="block w-full border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm border p-2.5 sm:text-sm" />
+                          <button
+                            type="button"
+                            onClick={() => removeCredit(index)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-[#1b2f1f] text-emerald-300 hover:bg-[#24382a] transition-colors"
+                            title="Remove addition"
+                          >
+                            <Trash className="w-4 h-4" />
+                          </button>
+                      </div>
+                  ))}
               </div>
-            ) : null}
+          </div>
+
+          {/* Credit (Deducted) */}
+          <div className="rounded-xl border border-red-900/30 bg-zinc-900/40 p-4 space-y-4">
+            <div className="flex items-center justify-between gap-3 border-b border-red-900/30 pb-3">
+                <h3 className="text-lg font-medium leading-6 text-red-200">Credit (Deducted)</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                    <button type="button" onClick={() => appendCredit({ credit_type: creditTypes[0]?.name || 'Advance', amount: 0, note: '', direction: 'credit' })} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-red-300 bg-[#301b1f] hover:bg-[#3a2428] transition-colors">
+                        <Plus className="w-4 h-4 mr-1" /> Add
+                    </button>
+                </div>
+            </div>
 
             <div className="space-y-2">
-                {creditFields.map((field, index) => (
-                    <div key={field.id} className="flex gap-2 items-start">
-                        <select {...register(`credits.${index}.credit_type` as const)} className="block w-[140px] flex-none border-zinc-700 bg-zinc-800 text-white rounded-lg shadow-sm border p-2.5 sm:text-sm">
+                <div className="grid grid-cols-[160px_110px_1fr_36px] gap-2 text-[11px] uppercase tracking-wider text-zinc-500">
+                    <span>Type</span>
+                    <span>Amount</span>
+                    <span>Note</span>
+                    <span className="text-right"> </span>
+                </div>
+                {creditDeductionRows.map(({ field, index }) => (
+                    <div key={field.id} className="grid grid-cols-[160px_110px_1fr_36px] gap-2 items-center">
+                        <input type="hidden" {...register(`credits.${index}.direction` as const)} />
+                        <select {...register(`credits.${index}.credit_type` as const)} className="block w-full border-zinc-700 bg-zinc-800 text-white rounded-lg shadow-sm border p-2.5 sm:text-sm">
                             {creditTypes.length > 0 ? (
                               creditTypes.map(ct => (
                                 <option key={ct.id} value={ct.name}>{ct.name}</option>
@@ -1288,12 +1384,12 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                               </>
                             )}
                         </select>
-                        <input type="number" step="0.01" {...register(`credits.${index}.amount` as const)} placeholder="Amount" className="block w-[100px] flex-none border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm border p-2.5 sm:text-sm" />
-                        <input type="text" {...register(`credits.${index}.note` as const)} placeholder="Note" className="block flex-1 min-w-[80px] border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm border p-2.5 sm:text-sm" />
+                        <input type="number" step="0.01" {...register(`credits.${index}.amount` as const)} placeholder="0.00" className="block w-full border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm border p-2.5 sm:text-sm" />
+                        <input type="text" {...register(`credits.${index}.note` as const)} placeholder="Optional note" className="block w-full border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 rounded-lg shadow-sm border p-2.5 sm:text-sm" />
                         <button
                           type="button"
                           onClick={() => removeCredit(index)}
-                          className="mt-0.5 inline-flex items-center justify-center rounded-md bg-[#1b2f1f] p-2 text-emerald-300 hover:bg-[#24382a] transition-colors"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-[#301b1f] text-red-300 hover:bg-[#3a2428] transition-colors"
                           title="Remove credit"
                         >
                           <Trash className="w-4 h-4" />
@@ -1301,6 +1397,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                     </div>
                 ))}
             </div>
+          </div>
           </div>
       </div>
 
@@ -1336,7 +1433,11 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                 </div>
                 <div className="flex justify-between">
                     <span className="text-zinc-400">Additions</span>
-                    <span className="text-emerald-400">+{formatMoney(totalCredits)}</span>
+                    <span className="text-emerald-400">+{formatMoney(totalAdditions)}</span>
+                </div>
+                <div className="flex justify-between">
+                    <span className="text-zinc-400">Credit (Deducted)</span>
+                    <span className="text-red-400">-{formatMoney(totalCredits)}</span>
                 </div>
                 <div className="flex justify-between items-center">
                     <span className="text-zinc-400 flex items-center gap-2">

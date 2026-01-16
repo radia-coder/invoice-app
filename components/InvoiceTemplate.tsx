@@ -65,6 +65,7 @@ export interface InvoiceData {
   notes?: string | null;
   ytdGrossIncome?: number;
   ytdNetPay?: number;
+  ytdCredit?: number;
 }
 
 export const generateInvoiceHTML = (data: InvoiceData) => {
@@ -86,18 +87,20 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
         deduction.amount > 0
     );
 
-  const displayedCredits = (data.credits || [])
+  const normalizedCredits = (data.credits || [])
     .map((credit) => ({
       ...credit,
       credit_type: credit.credit_type || '',
       amount: normalizeAmount(credit.amount)
-    }))
-    .filter((credit) => credit.amount > 0);
+    }));
+
+  const displayedAdditions = normalizedCredits.filter((credit) => credit.amount > 0);
+  const displayedCredits = normalizedCredits.filter((credit) => credit.amount < 0);
 
   const totals = calculateInvoiceTotals({
     loads: data.loads,
     deductions: displayedDeductions,
-    credits: displayedCredits,
+    credits: normalizedCredits,
     percent: data.percent,
     tax_percent: data.tax_percent || 0,
     driver_type: data.driver.type,
@@ -185,10 +188,17 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
     </div>
   `).join('');
 
-  const creditsRows = displayedCredits.map(c => `
+  const additionsRows = displayedAdditions.map(c => `
     <div class="flex justify-between text-sm text-gray-600">
         <span>${escapeHtml(c.credit_type)} ${c.note ? `(${escapeHtml(c.note)})` : ''}</span>
         <span class="text-green-600">+ ${formatCurrency(c.amount, currency)}</span>
+    </div>
+  `).join('');
+
+  const creditsRows = displayedCredits.map(c => `
+    <div class="flex justify-between text-sm text-gray-600">
+        <span>${escapeHtml(c.credit_type)} ${c.note ? `(${escapeHtml(c.note)})` : ''}</span>
+        <span class="text-red-600">- ${formatCurrency(Math.abs(c.amount), currency)}</span>
     </div>
   `).join('');
 
@@ -318,12 +328,25 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
             ` : ''}
 
             <!-- Additions -->
-            ${displayedCredits.length > 0 ? `
+            ${displayedAdditions.length > 0 ? `
                 <div class="border-t border-gray-200 pt-2 space-y-1">
-                    ${creditsRows}
+                    <div class="text-xs uppercase tracking-wider text-gray-500 font-bold">Additions</div>
+                    ${additionsRows}
                     <div class="flex justify-between font-medium text-gray-800 pt-1 border-t border-gray-100">
                          <span>Total Additions</span>
-                         <span class="text-green-600">+ ${formatCurrency(totals.credits, currency)}</span>
+                         <span class="text-green-600">+ ${formatCurrency(totals.additions, currency)}</span>
+                    </div>
+                </div>
+            ` : ''}
+
+            <!-- Credits -->
+            ${displayedCredits.length > 0 ? `
+                <div class="border-t border-gray-200 pt-2 space-y-1">
+                    <div class="text-xs uppercase tracking-wider text-gray-500 font-bold">Credit (Deducted)</div>
+                    ${creditsRows}
+                    <div class="flex justify-between font-medium text-gray-800 pt-1 border-t border-gray-100">
+                         <span>Total Credit</span>
+                         <span class="text-red-600">- ${formatCurrency(totals.credits, currency)}</span>
                     </div>
                 </div>
             ` : ''}
@@ -352,6 +375,12 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
                     <span class="font-semibold uppercase tracking-wide">YTD NET PAY</span>
                     <span class="font-bold">${formatCurrency(data.ytdNetPay, currency)}</span>
                 </div>
+                ${data.ytdCredit !== undefined ? `
+                <div class="flex justify-between text-sm text-gray-700">
+                    <span class="font-semibold uppercase tracking-wide">YTD CREDIT</span>
+                    <span class="font-bold text-red-600">- ${formatCurrency(data.ytdCredit, currency)}</span>
+                </div>
+                ` : ''}
             </div>
             ` : ''}
         </div>

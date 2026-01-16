@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { requireApiAuth } from '@/lib/api-auth';
 import { buildInvoicePdfFilename, getInvoicePdfBuffer } from '@/lib/invoice-pdf';
 import { type InvoiceData } from '@/components/InvoiceTemplate';
+import { calculateInvoiceTotals } from '@/lib/invoice-calculations';
 import {
   buildAutoDeductionEntries,
   calculateAutoDeductions,
@@ -24,7 +25,12 @@ const getPdfBuffer = async (invoice: any) => {
         lte: invoice.week_end
       }
     },
-    select: { updated_at: true, deductions: true }
+    include: {
+      loads: true,
+      deductions: true,
+      credits: true,
+      driver: true
+    }
   });
   const ytdInsurance = ytdInvoices.reduce(
     (sum, ytdInvoice) => sum + sumInsuranceDeductions(ytdInvoice.deductions),
@@ -39,12 +45,37 @@ const getPdfBuffer = async (invoice: any) => {
   const autoEntries = buildAutoDeductionEntries(autoAmounts, autoConfig);
   const mergedDeductions = mergeDeductionsWithAuto(invoice.deductions, autoEntries);
 
+  let ytdGrossIncome = 0;
+  let ytdNetPay = 0;
+  let ytdCredit = 0;
+  ytdInvoices.forEach((ytdInvoice) => {
+    const totals = calculateInvoiceTotals({
+      loads: ytdInvoice.loads,
+      deductions: ytdInvoice.deductions,
+      credits: ytdInvoice.credits || [],
+      percent: ytdInvoice.percent,
+      tax_percent: ytdInvoice.tax_percent || 0,
+      driver_type: ytdInvoice.driver.type,
+      manual_net_pay: ytdInvoice.manual_net_pay
+    });
+    ytdGrossIncome += totals.gross;
+    ytdNetPay += totals.net;
+    ytdCredit += (ytdInvoice.credits || []).reduce((sum, credit) => {
+      const amount = credit.amount || 0;
+      return amount < 0 ? sum + Math.abs(amount) : sum;
+    }, 0);
+  });
+
   const invoiceData: InvoiceData = {
     ...invoice,
     company: invoice.company,
     driver: invoice.driver,
     loads: invoice.loads,
-    deductions: mergedDeductions
+    deductions: mergedDeductions,
+    credits: invoice.credits,
+    ytdGrossIncome,
+    ytdNetPay,
+    ytdCredit
   };
 
   return getInvoicePdfBuffer({

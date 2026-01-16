@@ -82,7 +82,10 @@ export default async function ReportsPage({
       ? invoiceTotals.gross - invoiceTotals.percentAmount
       : invoiceTotals.percentAmount;
 
-    const totalCredits = (invoice.credits || []).reduce((sum, c) => sum + c.amount, 0);
+    const additions = (invoice.credits || []).filter((c) => c.amount >= 0);
+    const credits = (invoice.credits || []).filter((c) => c.amount < 0);
+    const totalAdditions = additions.reduce((sum, c) => sum + c.amount, 0);
+    const totalCredits = credits.reduce((sum, c) => sum + Math.abs(c.amount), 0);
 
     return {
       id: invoice.id,
@@ -101,9 +104,14 @@ export default async function ReportsPage({
         amount: d.amount
       })),
       totalFixedDeductions: invoiceTotals.fixedDed,
-      credits: (invoice.credits || []).map((c) => ({
+      additions: additions.map((c) => ({
         name: c.credit_type + (c.note ? ` (${c.note})` : ''),
         amount: c.amount
+      })),
+      totalAdditions,
+      credits: credits.map((c) => ({
+        name: c.credit_type + (c.note ? ` (${c.note})` : ''),
+        amount: Math.abs(c.amount)
       })),
       totalCredits,
       taxPercent: invoice.tax_percent || 0,

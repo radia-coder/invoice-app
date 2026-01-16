@@ -10,6 +10,7 @@ import {
   mergeDeductionsWithAuto,
   sumInsuranceDeductions
 } from '@/lib/auto-deductions'
+import { calculateInvoiceTotals } from '@/lib/invoice-calculations'
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -241,7 +242,12 @@ export async function PUT(
                 lte: invoiceWithRelations.week_end
               }
             },
-            select: { updated_at: true, deductions: true }
+            include: {
+              loads: true,
+              deductions: true,
+              credits: true,
+              driver: true
+            }
           })
           const ytdInsurance = ytdInvoices.reduce(
             (sum, ytdInvoice) => sum + sumInsuranceDeductions(ytdInvoice.deductions),
@@ -256,11 +262,35 @@ export async function PUT(
           const autoEntries = buildAutoDeductionEntries(autoAmounts, autoConfig)
           const mergedDeductions = mergeDeductionsWithAuto(invoiceWithRelations.deductions, autoEntries)
 
+          let ytdGrossIncome = 0
+          let ytdNetPay = 0
+          let ytdCredit = 0
+          ytdInvoices.forEach((ytdInvoice) => {
+            const totals = calculateInvoiceTotals({
+              loads: ytdInvoice.loads,
+              deductions: ytdInvoice.deductions,
+              credits: ytdInvoice.credits || [],
+              percent: ytdInvoice.percent,
+              tax_percent: ytdInvoice.tax_percent || 0,
+              driver_type: ytdInvoice.driver.type,
+              manual_net_pay: ytdInvoice.manual_net_pay
+            })
+            ytdGrossIncome += totals.gross
+            ytdNetPay += totals.net
+            ytdCredit += (ytdInvoice.credits || []).reduce((sum, credit) => {
+              const amount = credit.amount || 0
+              return amount < 0 ? sum + Math.abs(amount) : sum
+            }, 0)
+          })
+
           await getInvoicePdfBuffer({
             ...invoiceWithRelations,
             id: invoiceWithRelations.id,
             deductions: mergedDeductions,
-            updated_at: latestUpdatedAt
+            updated_at: latestUpdatedAt,
+            ytdGrossIncome,
+            ytdNetPay,
+            ytdCredit
           })
         } catch (error) {
           console.error('PDF warmup error:', error)

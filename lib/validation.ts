@@ -37,7 +37,7 @@ export const deductionSchema = z.object({
 
 export const creditSchema = z.object({
   credit_type: z.string().min(1, 'Credit type is required'),
-  amount: z.number().finite().min(0, 'Amount must be at least 0'),
+  amount: z.number().finite(),
   note: z.string().optional().nullable()
 });
 
