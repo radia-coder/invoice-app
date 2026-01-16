@@ -341,21 +341,17 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
                 <span>${formatCurrency(netTotal, currency)}</span>
             </div>
 
-            <!-- YTD Section -->
-            ${(data.ytdGrossIncome !== undefined || data.ytdNetPay !== undefined) ? `
+            <!-- YTD Section - Only for Owner-Operators -->
+            ${!isCompanyDriver && (data.ytdGrossIncome !== undefined && data.ytdNetPay !== undefined) ? `
             <div class="border-t border-gray-300 pt-4 mt-4 space-y-2">
-                ${data.ytdGrossIncome !== undefined ? `
                 <div class="flex justify-between text-sm text-gray-700">
                     <span class="font-semibold uppercase tracking-wide">YTD GROSS INCOME</span>
                     <span class="font-bold">${formatCurrency(data.ytdGrossIncome, currency)}</span>
                 </div>
-                ` : ''}
-                ${data.ytdNetPay !== undefined ? `
                 <div class="flex justify-between text-sm text-gray-700">
                     <span class="font-semibold uppercase tracking-wide">YTD NET PAY</span>
                     <span class="font-bold">${formatCurrency(data.ytdNetPay, currency)}</span>
                 </div>
-                ` : ''}
             </div>
             ` : ''}
         </div>
