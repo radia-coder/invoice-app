@@ -7,7 +7,6 @@ import { InvoiceTemplate } from './InvoiceTemplate';
 import { useRouter } from 'next/navigation';
 import { LocationInput, validateLocation } from './ui/location-input';
 import { normalizeState } from '@/lib/us-states';
-import { calculateInvoiceTotals } from '@/lib/invoice-calculations';
 
 interface Company {
   id: number;
@@ -147,7 +146,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
   const [creditTypeError, setCreditTypeError] = useState('');
   const [showEditNetPay, setShowEditNetPay] = useState(false);
   const [editNetPayValue, setEditNetPayValue] = useState('');
-  const [ytdBaseTotals, setYtdBaseTotals] = useState<{ gross: number; net: number } | null>(null);
+  const [ytdTotals, setYtdTotals] = useState<{ gross: number; net: number } | null>(null);
   const requiredDateMessage = 'Please fill all required dates.';
 
   // Format date helper
@@ -274,19 +273,61 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
     return drivers.find((d) => d.id === id) || initialData?.driver;
   }, [drivers, initialData?.driver, selectedDriverId]);
 
-  const currentTotals = useMemo(() => {
-    if (!selectedDriver) return null;
-    return calculateInvoiceTotals({
-      loads: (watchedLoads || []).map((load) => ({ amount: Number(load.amount) || 0 })),
-      deductions: (watchedDeductions || []).map((deduction) => ({ amount: Number(deduction.amount) || 0 })),
-      credits: (watchedCredits || []).map((credit) => ({ amount: Number(credit.amount) || 0 })),
-      percent: Number(watchedPercent) || 0,
-      tax_percent: Number(watchedTaxPercent) || 0,
-      driver_type: selectedDriver.type,
-      manual_net_pay: watchedManualNetPay
-    });
+  useEffect(() => {
+    if (!previewMode) {
+      setYtdTotals(null);
+      return;
+    }
+    if (!selectedDriver || !selectedDriverId || !watchedWeekEnd) {
+      setYtdTotals(null);
+      return;
+    }
+    if (selectedDriver.type === 'Company Driver') {
+      setYtdTotals(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const payload = {
+      driverId: Number(selectedDriverId),
+      weekEnd: watchedWeekEnd,
+      excludeInvoiceId: initialData?.id,
+      invoice: {
+        loads: (watchedLoads || []).map((load) => ({ amount: Number(load.amount) || 0 })),
+        deductions: (watchedDeductions || []).map((deduction) => ({ amount: Number(deduction.amount) || 0 })),
+        credits: (watchedCredits || []).map((credit) => ({ amount: Number(credit.amount) || 0 })),
+        percent: Number(watchedPercent) || 0,
+        tax_percent: Number(watchedTaxPercent) || 0,
+        manual_net_pay: watchedManualNetPay ?? null
+      }
+    };
+
+    fetch('/api/invoices/ytd', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Failed to fetch YTD'))))
+      .then((data) => {
+        setYtdTotals({
+          gross: Number(data?.ytdGrossIncome) || 0,
+          net: Number(data?.ytdNetPay) || 0
+        });
+      })
+      .catch((error) => {
+        if (error?.name !== 'AbortError') {
+          setYtdTotals(null);
+        }
+      });
+
+    return () => controller.abort();
   }, [
+    previewMode,
+    initialData?.id,
     selectedDriver,
+    selectedDriverId,
+    watchedWeekEnd,
     watchedLoads,
     watchedDeductions,
     watchedCredits,
@@ -294,50 +335,6 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
     watchedTaxPercent,
     watchedManualNetPay
   ]);
-
-  useEffect(() => {
-    if (!selectedDriver || !selectedDriverId || !watchedWeekEnd) {
-      setYtdBaseTotals(null);
-      return;
-    }
-    if (selectedDriver.type === 'Company Driver') {
-      setYtdBaseTotals(null);
-      return;
-    }
-
-    const controller = new AbortController();
-    const params = new URLSearchParams({
-      driverId: String(selectedDriverId),
-      weekEnd: watchedWeekEnd
-    });
-    if (initialData?.id) {
-      params.set('excludeInvoiceId', String(initialData.id));
-    }
-
-    fetch(`/api/invoices/ytd?${params.toString()}`, { signal: controller.signal })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Failed to fetch YTD'))))
-      .then((data) => {
-        setYtdBaseTotals({
-          gross: Number(data?.ytdGrossIncome) || 0,
-          net: Number(data?.ytdNetPay) || 0
-        });
-      })
-      .catch((error) => {
-        if (error?.name !== 'AbortError') {
-          setYtdBaseTotals(null);
-        }
-      });
-
-    return () => controller.abort();
-  }, [initialData?.id, selectedDriver, selectedDriverId, watchedWeekEnd]);
-
-  const ytdTotals = useMemo(() => {
-    if (!currentTotals || !ytdBaseTotals) return null;
-    return {
-      gross: ytdBaseTotals.gross + currentTotals.gross,
-      net: ytdBaseTotals.net + currentTotals.net
-    };
-  }, [currentTotals, ytdBaseTotals]);
 
   // Fetch deduction types (initially and when company changes)
   const fetchDeductionTypes = async (companyId?: string | number) => {

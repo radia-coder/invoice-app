@@ -522,3 +522,8 @@ After successful deployment, you should see:
 **Last Updated**: January 4, 2026
 **Your VM**: sucaadarif@invoiceapp:~/invoice-app
 **App URL**: https://invoice.khitma.com
+
+cd ~/invoice-app
+git pull origin main
+npm run build
+pm2 restart all
