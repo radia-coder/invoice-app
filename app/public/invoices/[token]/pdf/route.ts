@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { buildInvoicePdfFilename, getInvoicePdfBuffer } from '@/lib/invoice-pdf';
 import { type InvoiceData } from '@/components/InvoiceTemplate';
+import { calculateInvoiceTotals } from '@/lib/invoice-calculations';
 import {
   buildAutoDeductionEntries,
   calculateAutoDeductions,
@@ -23,7 +24,8 @@ export async function GET(
       company: true,
       driver: true,
       loads: true,
-      deductions: true
+      deductions: true,
+      credits: true
     }
   });
 
@@ -36,10 +38,17 @@ export async function GET(
     company: invoice.company,
     driver: invoice.driver,
     loads: invoice.loads,
-    deductions: invoice.deductions
+    deductions: invoice.deductions,
+    credits: invoice.credits
   };
 
-  const yearStart = new Date(invoice.week_end.getFullYear(), 0, 1);
+  const weekEndDate = new Date(invoice.week_end);
+  const currentYear = weekEndDate.getFullYear();
+  const currentMonth = weekEndDate.getMonth();
+  const currentDay = weekEndDate.getDate();
+  const yearStart = currentMonth === 11 && currentDay >= 21
+    ? new Date(currentYear, 11, 21)
+    : new Date(currentYear - 1, 11, 21);
   const ytdInvoices = await prisma.invoice.findMany({
     where: {
       driver_id: invoice.driver_id,
@@ -48,7 +57,13 @@ export async function GET(
         lte: invoice.week_end
       }
     },
-    select: { updated_at: true, deductions: true }
+    include: {
+      loads: true,
+      deductions: true,
+      credits: true,
+      driver: true
+    },
+    orderBy: { week_end: 'asc' }
   });
 
   const ytdInsurance = ytdInvoices.reduce(
@@ -58,6 +73,22 @@ export async function GET(
   const latestUpdatedAt = ytdInvoices.reduce((latest, ytdInvoice) => {
     return ytdInvoice.updated_at > latest ? ytdInvoice.updated_at : latest;
   }, invoice.updated_at);
+
+  let ytdGrossIncome = 0;
+  let ytdNetPay = 0;
+  ytdInvoices.forEach((ytdInvoice) => {
+    const totals = calculateInvoiceTotals({
+      loads: ytdInvoice.loads,
+      deductions: ytdInvoice.deductions,
+      credits: ytdInvoice.credits || [],
+      percent: ytdInvoice.percent,
+      tax_percent: ytdInvoice.tax_percent || 0,
+      driver_type: ytdInvoice.driver.type,
+      manual_net_pay: ytdInvoice.manual_net_pay
+    });
+    ytdGrossIncome += totals.gross;
+    ytdNetPay += totals.net;
+  });
 
   const etag = `W/"invoice-${invoice.id}-${latestUpdatedAt.getTime()}"`;
   const lastModified = latestUpdatedAt.toUTCString();
@@ -88,7 +119,9 @@ export async function GET(
       ...invoiceData,
       deductions: mergedDeductions,
       id: invoice.id,
-      updated_at: latestUpdatedAt
+      updated_at: latestUpdatedAt,
+      ytdGrossIncome,
+      ytdNetPay
     });
 
     return new NextResponse(pdfBuffer as BodyInit, {

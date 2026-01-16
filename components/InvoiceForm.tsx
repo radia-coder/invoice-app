@@ -7,6 +7,7 @@ import { InvoiceTemplate } from './InvoiceTemplate';
 import { useRouter } from 'next/navigation';
 import { LocationInput, validateLocation } from './ui/location-input';
 import { normalizeState } from '@/lib/us-states';
+import { calculateInvoiceTotals } from '@/lib/invoice-calculations';
 
 interface Company {
   id: number;
@@ -146,6 +147,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
   const [creditTypeError, setCreditTypeError] = useState('');
   const [showEditNetPay, setShowEditNetPay] = useState(false);
   const [editNetPayValue, setEditNetPayValue] = useState('');
+  const [ytdBaseTotals, setYtdBaseTotals] = useState<{ gross: number; net: number } | null>(null);
   const requiredDateMessage = 'Please fill all required dates.';
 
   // Format date helper
@@ -258,12 +260,84 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
   const watchedDueDate = watch('due_date');
   const watchedPercent = watch('percent');
   const watchedTaxPercent = watch('tax_percent');
+  const watchedManualNetPay = watch('manual_net_pay');
   const watchedLoads = watch('loads');
   const watchedDeductions = watch('deductions');
   const watchedCredits = watch('credits');
   const visibleDeductionTypes = deductionTypes.filter(
     (type) => type.name.trim().toLowerCase() !== 'date del'
   );
+
+  const selectedDriver = useMemo(() => {
+    const id = Number(selectedDriverId);
+    if (!Number.isFinite(id)) return initialData?.driver;
+    return drivers.find((d) => d.id === id) || initialData?.driver;
+  }, [drivers, initialData?.driver, selectedDriverId]);
+
+  const currentTotals = useMemo(() => {
+    if (!selectedDriver) return null;
+    return calculateInvoiceTotals({
+      loads: (watchedLoads || []).map((load) => ({ amount: Number(load.amount) || 0 })),
+      deductions: (watchedDeductions || []).map((deduction) => ({ amount: Number(deduction.amount) || 0 })),
+      credits: (watchedCredits || []).map((credit) => ({ amount: Number(credit.amount) || 0 })),
+      percent: Number(watchedPercent) || 0,
+      tax_percent: Number(watchedTaxPercent) || 0,
+      driver_type: selectedDriver.type,
+      manual_net_pay: watchedManualNetPay
+    });
+  }, [
+    selectedDriver,
+    watchedLoads,
+    watchedDeductions,
+    watchedCredits,
+    watchedPercent,
+    watchedTaxPercent,
+    watchedManualNetPay
+  ]);
+
+  useEffect(() => {
+    if (!selectedDriver || !selectedDriverId || !watchedWeekEnd) {
+      setYtdBaseTotals(null);
+      return;
+    }
+    if (selectedDriver.type === 'Company Driver') {
+      setYtdBaseTotals(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      driverId: String(selectedDriverId),
+      weekEnd: watchedWeekEnd
+    });
+    if (initialData?.id) {
+      params.set('excludeInvoiceId', String(initialData.id));
+    }
+
+    fetch(`/api/invoices/ytd?${params.toString()}`, { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Failed to fetch YTD'))))
+      .then((data) => {
+        setYtdBaseTotals({
+          gross: Number(data?.ytdGrossIncome) || 0,
+          net: Number(data?.ytdNetPay) || 0
+        });
+      })
+      .catch((error) => {
+        if (error?.name !== 'AbortError') {
+          setYtdBaseTotals(null);
+        }
+      });
+
+    return () => controller.abort();
+  }, [initialData?.id, selectedDriver, selectedDriverId, watchedWeekEnd]);
+
+  const ytdTotals = useMemo(() => {
+    if (!currentTotals || !ytdBaseTotals) return null;
+    return {
+      gross: ytdBaseTotals.gross + currentTotals.gross,
+      net: ytdBaseTotals.net + currentTotals.net
+    };
+  }, [currentTotals, ytdBaseTotals]);
 
   // Fetch deduction types (initially and when company changes)
   const fetchDeductionTypes = async (companyId?: string | number) => {
@@ -706,7 +780,9 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
       status: watch('status'),
       due_date: watch('due_date'),
       currency: 'USD',
-      notes: watch('notes')
+      notes: watch('notes'),
+      ytdGrossIncome: ytdTotals?.gross,
+      ytdNetPay: ytdTotals?.net
     };
   };
 
@@ -750,7 +826,6 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
   const totalCredits = watchedCredits?.reduce((sum: number, c: CreditItem) => sum + (Number(c.amount) || 0), 0) || 0;
 
   // Get selected driver to determine calculation type
-  const selectedDriver = drivers.find(d => d.id === parseInt(selectedDriverId?.toString() || '0')) || initialData?.driver;
   const isCompanyDriver = selectedDriver?.type === 'Company Driver';
 
   // Company Driver: percent is driver pay, net = driverPay - fixedDeductions + credits
