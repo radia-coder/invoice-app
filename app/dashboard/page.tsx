@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { format } from 'date-fns';
 import { FileText, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -79,7 +80,7 @@ export default async function Home({
     ];
   }
 
-  const orderBy = (() => {
+  const orderBy: Prisma.InvoiceOrderByWithRelationInput[] = (() => {
     switch (sort) {
       case 'created':
         return [{ invoice_date: 'desc' }, { created_at: 'desc' }];
