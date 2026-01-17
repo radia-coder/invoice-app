@@ -83,14 +83,14 @@ export default async function Home({
   const orderBy: Prisma.InvoiceOrderByWithRelationInput[] = (() => {
     switch (sort) {
       case 'created':
-        return [{ invoice_date: 'desc' }, { created_at: 'desc' }];
+        return [{ invoice_date: 'desc' as const }, { created_at: 'desc' as const }];
       case 'opened':
-        return [{ last_opened_at: 'desc' }, { created_at: 'desc' }];
+        return [{ last_opened_at: 'desc' as const }, { created_at: 'desc' as const }];
       case 'name':
-        return [{ driver: { name: 'asc' } }, { created_at: 'desc' }];
+        return [{ driver: { name: 'asc' as const } }, { created_at: 'desc' as const }];
       case 'added':
       default:
-        return [{ created_at: 'desc' }];
+        return [{ created_at: 'desc' as const }];
     }
   })();
 
