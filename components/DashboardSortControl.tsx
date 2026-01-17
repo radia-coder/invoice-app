@@ -13,13 +13,13 @@ const sortOptions = [
 type SortValue = (typeof sortOptions)[number]["value"];
 
 export default function DashboardSortControl({
-  defaultSort = "added",
+  defaultSort = "invoice",
 }: {
   defaultSort?: SortValue;
 }) {
   const currentSort = sortOptions.some((option) => option.value === defaultSort)
     ? defaultSort
-    : "added";
+    : "invoice";
   const handleChange = (event: ChangeEvent<HTMLSelectElement>) => {
     const form = event.currentTarget.form;
     if (!form) return;

@@ -47,7 +47,7 @@ export default async function Home({
   const dateFrom = params.dateFrom ? new Date(params.dateFrom) : null;
   const dateTo = params.dateTo ? new Date(params.dateTo) : null;
   const sortOptions = new Set(['added', 'created', 'opened', 'name', 'invoice']);
-  const sort = sortOptions.has(params.sort || '') ? params.sort! : 'added';
+  const sort = sortOptions.has(params.sort || '') ? params.sort! : 'invoice';
 
   const where: any = {};
   if (!isSuperAdmin(user)) {
