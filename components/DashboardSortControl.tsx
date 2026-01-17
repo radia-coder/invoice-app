@@ -3,9 +3,9 @@
 import type { ChangeEvent } from "react";
 
 const sortOptions = [
+  { value: "invoice", label: "Invoice Date" },
   { value: "added", label: "Date Added" },
   { value: "opened", label: "Date Last Opened" },
-  { value: "invoice", label: "Invoice Date" },
   { value: "name", label: "Name" },
 ] as const;
 
