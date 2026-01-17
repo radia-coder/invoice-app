@@ -1,5 +1,7 @@
 "use client";
 
+import type { ChangeEvent } from "react";
+
 const sortOptions = [
   { value: "added", label: "Date Added" },
   { value: "created", label: "Date Created" },
@@ -17,7 +19,7 @@ export default function DashboardSortControl({
   const currentSort = sortOptions.some((option) => option.value === defaultSort)
     ? defaultSort
     : "added";
-  const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleChange = (event: ChangeEvent<HTMLSelectElement>) => {
     const form = event.currentTarget.form;
     if (!form) return;
     if (typeof form.requestSubmit === "function") {
