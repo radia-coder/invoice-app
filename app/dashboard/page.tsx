@@ -49,6 +49,18 @@ export default async function Home({
   const sortOptions = new Set(['added', 'opened', 'name', 'invoice']);
   const sort = sortOptions.has(params.sort || '') ? params.sort! : 'invoice';
 
+  // Build return URL to preserve dashboard state
+  const returnUrl = new URLSearchParams();
+  if (page > 1) returnUrl.set('page', page.toString());
+  if (sort !== 'invoice') returnUrl.set('sort', sort);
+  if (q) returnUrl.set('q', q);
+  if (status) returnUrl.set('status', status);
+  if (companyId) returnUrl.set('companyId', companyId.toString());
+  if (driverId) returnUrl.set('driverId', driverId.toString());
+  if (params.dateFrom) returnUrl.set('dateFrom', params.dateFrom);
+  if (params.dateTo) returnUrl.set('dateTo', params.dateTo);
+  const returnPath = `/dashboard${returnUrl.toString() ? `?${returnUrl.toString()}` : ''}`;
+
   const where: any = {};
   if (!isSuperAdmin(user)) {
     where.company_id = user?.company_id ?? -1;
@@ -271,7 +283,7 @@ export default async function Home({
                       <div className="flex items-center justify-between">
                         <div className="flex items-center text-sm font-medium text-blue-400 truncate">
                           <FileText className="h-5 w-5 mr-2 text-zinc-500" />
-                          <Link href={`/invoices/${invoice.id}`} className="hover:underline hover:text-blue-300">
+                          <Link href={`/invoices/${invoice.id}?from=${encodeURIComponent(returnPath)}`} className="hover:underline hover:text-blue-300">
                             {invoice.invoice_number}
                           </Link>
                         </div>

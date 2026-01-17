@@ -8,9 +8,17 @@ import InvoiceLifecycleActions from '@/components/InvoiceLifecycleActions';
 import InvoiceWhatsappShare from '@/components/InvoiceWhatsappShare';
 import { calculateInvoiceTotals } from '@/lib/invoice-calculations';
 
-export default async function InvoicePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function InvoicePage({
+  params,
+  searchParams
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string }>;
+}) {
   const { id } = await params;
+  const { from } = await searchParams;
   const user = await getSessionUser();
+  const backUrl = from || '/dashboard';
 
   const invoice = await prisma.invoice.findUnique({
     where: { id: parseInt(id) },
@@ -105,7 +113,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
     <div className="space-y-6">
       <div className="flex justify-between items-center flex-wrap gap-4">
         <div className="flex items-center space-x-4">
-            <Link href="/dashboard" className="text-zinc-400 hover:text-white transition-colors">
+            <Link href={backUrl} className="text-zinc-400 hover:text-white transition-colors">
                 <ArrowLeft className="w-5 h-5" />
             </Link>
             <div>
