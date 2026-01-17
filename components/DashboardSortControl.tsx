@@ -1,7 +1,5 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-
 const sortOptions = [
   { value: "added", label: "Date Added" },
   { value: "created", label: "Date Created" },
@@ -16,20 +14,17 @@ export default function DashboardSortControl({
 }: {
   defaultSort?: SortValue;
 }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const paramSort = searchParams.get("sort") as SortValue | null;
-  const currentSort =
-    paramSort && sortOptions.some((option) => option.value === paramSort)
-      ? paramSort
-      : defaultSort;
-
-  const handleChange = (value: SortValue) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("sort", value);
-    params.delete("page");
-    router.push(`${pathname}?${params.toString()}`);
+  const currentSort = sortOptions.some((option) => option.value === defaultSort)
+    ? defaultSort
+    : "added";
+  const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const form = event.currentTarget.form;
+    if (!form) return;
+    if (typeof form.requestSubmit === "function") {
+      form.requestSubmit();
+      return;
+    }
+    form.submit();
   };
 
   return (
@@ -37,11 +32,11 @@ export default function DashboardSortControl({
       <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
         Sort by
       </span>
-      <div className="relative">
+      <div className="relative min-w-[190px]">
         <select
           name="sort"
-          value={currentSort}
-          onChange={(event) => handleChange(event.target.value as SortValue)}
+          defaultValue={currentSort}
+          onChange={handleChange}
           className="appearance-none rounded-xl border border-zinc-700 bg-zinc-800 text-white shadow-sm px-4 py-2.5 pr-10 text-sm focus:ring-2 focus:ring-[#7a67e7] focus:border-transparent"
         >
           {sortOptions.map((option) => (
