@@ -16,6 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Pagination, PaginationContent, PaginationItem, PaginationEllipsis } from '@/components/ui/pagination';
 import CommandPalette from '@/components/CommandPalette';
+import DashboardSortControl from '@/components/DashboardSortControl';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +33,7 @@ export default async function Home({
     driverId?: string;
     dateFrom?: string;
     dateTo?: string;
+    sort?: string;
   }>;
 }) {
   const params = await searchParams;
@@ -43,6 +45,8 @@ export default async function Home({
   const driverId = params.driverId ? Number(params.driverId) : null;
   const dateFrom = params.dateFrom ? new Date(params.dateFrom) : null;
   const dateTo = params.dateTo ? new Date(params.dateTo) : null;
+  const sortOptions = new Set(['added', 'created', 'opened', 'name']);
+  const sort = sortOptions.has(params.sort || '') ? params.sort! : 'added';
 
   const where: any = {};
   if (!isSuperAdmin(user)) {
@@ -75,6 +79,20 @@ export default async function Home({
     ];
   }
 
+  const orderBy = (() => {
+    switch (sort) {
+      case 'created':
+        return [{ invoice_date: 'desc' }, { created_at: 'desc' }];
+      case 'opened':
+        return [{ last_opened_at: 'desc' }, { created_at: 'desc' }];
+      case 'name':
+        return [{ driver: { name: 'asc' } }, { created_at: 'desc' }];
+      case 'added':
+      default:
+        return [{ created_at: 'desc' }];
+    }
+  })();
+
   const [invoices, totalCount, companies, drivers] = await Promise.all([
     prisma.invoice.findMany({
       where,
@@ -85,7 +103,7 @@ export default async function Home({
         deductions: true,
         credits: true
       },
-      orderBy: { created_at: 'desc' },
+      orderBy,
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE
     }),
@@ -143,6 +161,10 @@ export default async function Home({
 
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 shadow-lg">
         <form className="space-y-6" method="GET">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-800 pb-4">
+            <p className="text-sm text-zinc-400">Filter and sort invoices</p>
+            <DashboardSortControl defaultSort={sort as 'added' | 'created' | 'opened' | 'name'} />
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto] gap-4">
             <div className="relative">
               <select 

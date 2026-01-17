@@ -28,6 +28,15 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
     notFound();
   }
 
+  try {
+    await prisma.invoice.update({
+      where: { id: invoice.id },
+      data: { last_opened_at: new Date() }
+    });
+  } catch {
+    // Ignore tracking failures so invoice view still renders.
+  }
+
   // Calculate YTD values - YTD year starts on December 21st
   const weekEndDate = new Date(invoice.week_end);
   const currentYear = weekEndDate.getFullYear();

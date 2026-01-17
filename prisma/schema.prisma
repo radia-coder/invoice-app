@@ -79,6 +79,7 @@ model Invoice {
   manual_net_pay  Float?
   created_at      DateTime  @default(now())
   updated_at      DateTime  @updatedAt
+  last_opened_at  DateTime?
 
   company         Company   @relation(fields: [company_id], references: [id])
   driver          Driver    @relation(fields: [driver_id], references: [id])
@@ -95,6 +96,7 @@ model Invoice {
   @@index([driver_id, status])
   @@index([week_start])
   @@index([invoice_date])
+  @@index([last_opened_at])
 }
 
 model InvoiceLoad {
