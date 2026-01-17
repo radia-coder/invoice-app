@@ -46,7 +46,7 @@ export default async function Home({
   const driverId = params.driverId ? Number(params.driverId) : null;
   const dateFrom = params.dateFrom ? new Date(params.dateFrom) : null;
   const dateTo = params.dateTo ? new Date(params.dateTo) : null;
-  const sortOptions = new Set(['added', 'created', 'opened', 'name']);
+  const sortOptions = new Set(['added', 'created', 'opened', 'name', 'invoice']);
   const sort = sortOptions.has(params.sort || '') ? params.sort! : 'added';
 
   const where: any = {};
@@ -88,6 +88,8 @@ export default async function Home({
         return [{ last_opened_at: 'desc' as const }, { created_at: 'desc' as const }];
       case 'name':
         return [{ driver: { name: 'asc' as const } }, { created_at: 'desc' as const }];
+      case 'invoice':
+        return [{ invoice_date: 'desc' as const }, { created_at: 'desc' as const }];
       case 'added':
       default:
         return [{ created_at: 'desc' as const }];
@@ -164,7 +166,7 @@ export default async function Home({
         <form className="space-y-6" method="GET">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-800 pb-4">
             <p className="text-sm text-zinc-400">Filter and sort invoices</p>
-            <DashboardSortControl defaultSort={sort as 'added' | 'created' | 'opened' | 'name'} />
+            <DashboardSortControl defaultSort={sort as 'added' | 'created' | 'opened' | 'invoice' | 'name'} />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto] gap-4">
             <div className="relative">

@@ -6,6 +6,7 @@ const sortOptions = [
   { value: "added", label: "Date Added" },
   { value: "created", label: "Date Created" },
   { value: "opened", label: "Date Last Opened" },
+  { value: "invoice", label: "Invoice Date" },
   { value: "name", label: "Name" },
 ] as const;
 
