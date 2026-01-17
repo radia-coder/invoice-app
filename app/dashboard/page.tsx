@@ -89,7 +89,7 @@ export default async function Home({
       case 'name':
         return [{ driver: { name: 'asc' as const } }, { created_at: 'desc' as const }];
       case 'invoice':
-        return [{ invoice_date: 'desc' as const }, { created_at: 'desc' as const }];
+        return [{ week_end: 'desc' as const }, { created_at: 'desc' as const }];
       case 'added':
       default:
         return [{ created_at: 'desc' as const }];
