@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Invoice" ADD COLUMN "credit_payback" DOUBLE PRECISION NOT NULL DEFAULT 0;

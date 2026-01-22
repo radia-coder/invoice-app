@@ -66,6 +66,8 @@ export interface InvoiceData {
   ytdGrossIncome?: number;
   ytdNetPay?: number;
   ytdCredit?: number;
+  ytdCreditPayback?: number;
+  credit_payback?: number | null;
 }
 
 export const generateInvoiceHTML = (data: InvoiceData) => {
@@ -380,6 +382,16 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
                     <span class="font-semibold uppercase tracking-wide">YTD CREDIT</span>
                     <span class="font-bold text-red-600">- ${formatCurrency(data.ytdCredit, currency)}</span>
                 </div>
+                ${data.ytdCreditPayback !== undefined && data.ytdCreditPayback > 0 ? `
+                <div class="flex justify-between text-sm text-gray-700">
+                    <span class="font-semibold uppercase tracking-wide">CREDIT PAYBACK</span>
+                    <span class="font-bold text-green-600">+ ${formatCurrency(data.ytdCreditPayback, currency)}</span>
+                </div>
+                <div class="flex justify-between text-sm text-gray-700 border-t border-gray-300 pt-2 mt-2">
+                    <span class="font-semibold uppercase tracking-wide">NET OUTSTANDING CREDIT</span>
+                    <span class="font-bold ${data.ytdCredit - data.ytdCreditPayback > 0 ? 'text-red-600' : 'text-green-600'}">${data.ytdCredit - data.ytdCreditPayback > 0 ? '- ' : ''}${formatCurrency(Math.abs(data.ytdCredit - data.ytdCreditPayback), currency)}</span>
+                </div>
+                ` : ''}
                 ` : ''}
             </div>
             ` : ''}

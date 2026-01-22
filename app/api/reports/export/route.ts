@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSessionUser, isSuperAdmin } from '@/lib/auth';
 import { calculateInvoiceTotals } from '@/lib/invoice-calculations';
+import { getYearStart } from '@/lib/fiscal-year';
 import {
   buildAutoDeductionEntries,
   buildYtdInsuranceIndex,
@@ -299,9 +300,8 @@ export async function GET(request: NextRequest) {
       orderBy: [{ week_start: 'asc' }],
     });
 
-    // Get YTD invoices (from Jan 1 of current year)
-    const currentYear = dateTo ? dateTo.getFullYear() : new Date().getFullYear();
-    const yearStart = new Date(currentYear, 0, 1);
+    // Get YTD invoices (from Dec 21 fiscal year start)
+    const yearStart = getYearStart(dateTo || new Date());
 
     const ytdInvoices = await prisma.invoice.findMany({
       where: {

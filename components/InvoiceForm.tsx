@@ -77,6 +77,7 @@ interface InvoiceFormData {
   notes?: string;
   invoice_number?: string;
   manual_net_pay?: number | null;
+  credit_payback?: number | null;
   loads: LoadItem[];
   deductions: DeductionItem[];
   credits: CreditItem[];
@@ -96,6 +97,7 @@ interface Invoice {
   notes?: string | null;
   invoice_number: string;
   manual_net_pay?: number | null;
+  credit_payback?: number | null;
   driver: Driver;
   loads: Array<{
     load_ref?: string | null;
@@ -147,7 +149,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
   const [creditTypeError, setCreditTypeError] = useState('');
   const [showEditNetPay, setShowEditNetPay] = useState(false);
   const [editNetPayValue, setEditNetPayValue] = useState('');
-  const [ytdTotals, setYtdTotals] = useState<{ gross: number; net: number; credit: number } | null>(null);
+  const [ytdTotals, setYtdTotals] = useState<{ gross: number; net: number; credit: number; creditPayback: number } | null>(null);
   const requiredDateMessage = 'Please fill all required dates.';
 
   // Format date helper
@@ -171,6 +173,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
         notes: initialData.notes || '',
         invoice_number: initialData.invoice_number,
         manual_net_pay: initialData.manual_net_pay ?? null,
+        credit_payback: initialData.credit_payback ?? 0,
         loads: initialData.loads.map((l) => ({
           load_ref: l.load_ref || '',
           vendor: l.vendor || '',
@@ -212,6 +215,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
       due_date: '',
       notes: '',
       manual_net_pay: null,
+      credit_payback: 0,
       loads: [{ load_ref: '', vendor: '', from_location: '', to_location: '', load_date: '', delivery_date: '', amount: 0 }],
       deductions: [],
       credits: []
@@ -265,6 +269,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
   const watchedPercent = watch('percent');
   const watchedTaxPercent = watch('tax_percent');
   const watchedManualNetPay = watch('manual_net_pay');
+  const watchedCreditPayback = watch('credit_payback');
   const watchedLoads = watch('loads');
   const watchedDeductions = watch('deductions');
   const watchedCredits = watch('credits');
@@ -311,7 +316,8 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
         credits: buildSignedCredits(watchedCredits || []),
         percent: Number(watchedPercent) || 0,
         tax_percent: Number(watchedTaxPercent) || 0,
-        manual_net_pay: watchedManualNetPay ?? null
+        manual_net_pay: watchedManualNetPay ?? null,
+        credit_payback: Number(watchedCreditPayback) || 0
       }
     };
 
@@ -326,7 +332,8 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
         setYtdTotals({
           gross: Number(data?.ytdGrossIncome) || 0,
           net: Number(data?.ytdNetPay) || 0,
-          credit: Number(data?.ytdCredit) || 0
+          credit: Number(data?.ytdCredit) || 0,
+          creditPayback: Number(data?.ytdCreditPayback) || 0
         });
       })
       .catch((error) => {
@@ -347,7 +354,8 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
     watchedCredits,
     watchedPercent,
     watchedTaxPercent,
-    watchedManualNetPay
+    watchedManualNetPay,
+    watchedCreditPayback
   ]);
 
   // Fetch deduction types (initially and when company changes)
@@ -670,6 +678,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
         tax_percent: parseFloat(data.tax_percent.toString()),
         currency: 'USD',
         manual_net_pay: data.manual_net_pay !== null && data.manual_net_pay !== undefined ? data.manual_net_pay : null,
+        credit_payback: data.credit_payback !== null && data.credit_payback !== undefined ? data.credit_payback : 0,
         loads: transformedLoads,
         deductions: data.deductions
           .filter((d: DeductionItem) => d.deduction_type.trim().toLowerCase() !== 'date del')
@@ -796,13 +805,15 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
       percent: Number(watchedPercent),
       tax_percent: Number(watchedTaxPercent),
       manual_net_pay: watch('manual_net_pay'),
+      credit_payback: watch('credit_payback'),
       status: watch('status'),
       due_date: watch('due_date'),
       currency: 'USD',
       notes: watch('notes'),
       ytdGrossIncome: ytdTotals?.gross,
       ytdNetPay: ytdTotals?.net,
-      ytdCredit: ytdTotals?.credit
+      ytdCredit: ytdTotals?.credit,
+      ytdCreditPayback: ytdTotals?.creditPayback
     };
   };
 
@@ -1463,6 +1474,28 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
             <div className="mt-4">
                 <label className="block text-sm font-medium text-zinc-300">Notes / Footer</label>
                 <textarea {...register('notes')} rows={3} className="mt-1 block w-full rounded-lg border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 shadow-sm focus:ring-2 focus:ring-[#7a67e7] border p-2.5 sm:text-sm" />
+            </div>
+
+            <div className="mt-4">
+                <label className="block text-sm font-medium text-zinc-300">Credit Payback</label>
+                <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    {...register('credit_payback', {
+                      valueAsNumber: true,
+                      validate: value => {
+                        if (value === null || value === undefined || value === 0) return true;
+                        return value >= 0 || 'Credit payback must be positive';
+                      }
+                    })}
+                    placeholder="Amount driver paid back on credit"
+                    className="mt-1 block w-full rounded-lg border-zinc-700 bg-zinc-800 text-white placeholder-zinc-500 shadow-sm focus:ring-2 focus:ring-[#7a67e7] border p-2.5 sm:text-sm"
+                />
+                <p className="mt-1 text-xs text-zinc-400">
+                  Enter the amount the driver has paid back on their credit (reduces YTD Credit)
+                </p>
+                {errors.credit_payback?.message ? <p className="text-xs text-red-400 mt-1">{errors.credit_payback.message}</p> : null}
             </div>
           </div>
       </div>

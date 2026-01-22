@@ -77,6 +77,7 @@ model Invoice {
   notes           String?
   currency        String    @default("USD")
   manual_net_pay  Float?
+  credit_payback  Float     @default(0)
   created_at      DateTime  @default(now())
   updated_at      DateTime  @updatedAt
   last_opened_at  DateTime?

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireApiAuth } from '@/lib/api-auth';
 import { calculateInvoiceTotals } from '@/lib/invoice-calculations';
+import { getYearStart } from '@/lib/fiscal-year';
 
 export const runtime = 'nodejs';
 
@@ -9,15 +10,6 @@ type YtdBaseInput = {
   driverId: number;
   weekEnd: Date;
   excludeInvoiceId?: number;
-};
-
-const getYearStart = (weekEnd: Date) => {
-  const currentYear = weekEnd.getFullYear();
-  const currentMonth = weekEnd.getMonth();
-  const currentDay = weekEnd.getDate();
-  return currentMonth === 11 && currentDay >= 21
-    ? new Date(currentYear, 11, 21)
-    : new Date(currentYear - 1, 11, 21);
 };
 
 const fetchYtdBaseTotals = async ({ driverId, weekEnd, excludeInvoiceId }: YtdBaseInput) => {
@@ -48,6 +40,7 @@ const fetchYtdBaseTotals = async ({ driverId, weekEnd, excludeInvoiceId }: YtdBa
   let ytdGrossIncome = 0;
   let ytdNetPay = 0;
   let ytdCredit = 0;
+  let ytdCreditPayback = 0;
 
   ytdInvoices.forEach((invoice) => {
     const totals = calculateInvoiceTotals({
@@ -65,9 +58,10 @@ const fetchYtdBaseTotals = async ({ driverId, weekEnd, excludeInvoiceId }: YtdBa
       const amount = credit.amount || 0;
       return amount < 0 ? sum + Math.abs(amount) : sum;
     }, 0);
+    ytdCreditPayback += invoice.credit_payback || 0;
   });
 
-  return { ytdGrossIncome, ytdNetPay, ytdCredit };
+  return { ytdGrossIncome, ytdNetPay, ytdCredit, ytdCreditPayback };
 };
 
 export async function GET(request: Request) {
@@ -167,9 +161,12 @@ export async function POST(request: Request) {
     0
   );
 
+  const currentCreditPayback = Number(invoicePayload.credit_payback) || 0;
+
   return NextResponse.json({
     ytdGrossIncome: baseTotals.ytdGrossIncome + currentTotals.gross,
     ytdNetPay: baseTotals.ytdNetPay + currentTotals.net,
-    ytdCredit: baseTotals.ytdCredit + currentCredits
+    ytdCredit: baseTotals.ytdCredit + currentCredits,
+    ytdCreditPayback: baseTotals.ytdCreditPayback + currentCreditPayback
   });
 }

@@ -4,6 +4,7 @@ import { requireApiAuth } from '@/lib/api-auth';
 import { buildInvoicePdfFilename, getInvoicePdfBuffer } from '@/lib/invoice-pdf';
 import { type InvoiceData } from '@/components/InvoiceTemplate';
 import { calculateInvoiceTotals } from '@/lib/invoice-calculations';
+import { getYearStart } from '@/lib/fiscal-year';
 import {
   buildAutoDeductionEntries,
   calculateAutoDeductions,
@@ -16,7 +17,7 @@ import nodemailer from 'nodemailer';
 export const runtime = 'nodejs';
 
 const getPdfBuffer = async (invoice: any) => {
-  const yearStart = new Date(invoice.week_end.getFullYear(), 0, 1);
+  const yearStart = getYearStart(invoice.week_end);
   const ytdInvoices = await prisma.invoice.findMany({
     where: {
       driver_id: invoice.driver_id,
@@ -48,6 +49,7 @@ const getPdfBuffer = async (invoice: any) => {
   let ytdGrossIncome = 0;
   let ytdNetPay = 0;
   let ytdCredit = 0;
+  let ytdCreditPayback = 0;
   ytdInvoices.forEach((ytdInvoice) => {
     const totals = calculateInvoiceTotals({
       loads: ytdInvoice.loads,
@@ -64,6 +66,7 @@ const getPdfBuffer = async (invoice: any) => {
       const amount = credit.amount || 0;
       return amount < 0 ? sum + Math.abs(amount) : sum;
     }, 0);
+    ytdCreditPayback += ytdInvoice.credit_payback || 0;
   });
 
   const invoiceData: InvoiceData = {
@@ -75,7 +78,8 @@ const getPdfBuffer = async (invoice: any) => {
     credits: invoice.credits,
     ytdGrossIncome,
     ytdNetPay,
-    ytdCredit
+    ytdCredit,
+    ytdCreditPayback
   };
 
   return getInvoicePdfBuffer({

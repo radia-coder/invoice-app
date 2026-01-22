@@ -4,6 +4,7 @@ import { requireApiAuth } from '@/lib/api-auth'
 import { formatZodErrors, invoiceInputSchema } from '@/lib/validation'
 import { getInvoicePdfBuffer } from '@/lib/invoice-pdf'
 import { calculateInvoiceTotals } from '@/lib/invoice-calculations'
+import { getYearStart } from '@/lib/fiscal-year'
 import {
   buildAutoDeductionEntries,
   calculateAutoDeductions,
@@ -69,6 +70,7 @@ export async function POST(request: Request) {
       status: body.status || 'draft',
       currency: 'USD',
       manual_net_pay: body.manual_net_pay !== undefined && body.manual_net_pay !== null ? Number(body.manual_net_pay) : undefined,
+      credit_payback: body.credit_payback !== undefined && body.credit_payback !== null ? Number(body.credit_payback) : 0,
       loads: (body.loads || []).map((l: LoadInput) => ({
         ...l,
         amount: Number(l.amount)
@@ -104,6 +106,7 @@ export async function POST(request: Request) {
       notes,
       currency,
       manual_net_pay,
+      credit_payback,
       loads,
       deductions,
       credits
@@ -157,6 +160,7 @@ export async function POST(request: Request) {
         notes,
         currency,
         manual_net_pay: manual_net_pay ?? undefined,
+        credit_payback: credit_payback ?? 0,
       loads: {
         create: loads.map((l: LoadInput) => ({
           load_ref: l.load_ref ?? undefined,
@@ -194,7 +198,7 @@ export async function POST(request: Request) {
     })
 
     try {
-      const yearStart = new Date(invoice.week_end.getFullYear(), 0, 1)
+      const yearStart = getYearStart(invoice.week_end)
       const ytdInvoices = await prisma.invoice.findMany({
         where: {
           driver_id: invoice.driver_id,
@@ -226,6 +230,7 @@ export async function POST(request: Request) {
       let ytdGrossIncome = 0
       let ytdNetPay = 0
       let ytdCredit = 0
+      let ytdCreditPayback = 0
       ytdInvoices.forEach((ytdInvoice) => {
         const totals = calculateInvoiceTotals({
           loads: ytdInvoice.loads,
@@ -242,6 +247,7 @@ export async function POST(request: Request) {
           const amount = credit.amount || 0
           return amount < 0 ? sum + Math.abs(amount) : sum
         }, 0)
+        ytdCreditPayback += ytdInvoice.credit_payback || 0
       })
 
       await getInvoicePdfBuffer({
@@ -251,7 +257,8 @@ export async function POST(request: Request) {
         updated_at: latestUpdatedAt,
         ytdGrossIncome,
         ytdNetPay,
-        ytdCredit
+        ytdCredit,
+        ytdCreditPayback
       })
     } catch (error) {
       console.error('PDF warmup error:', error)

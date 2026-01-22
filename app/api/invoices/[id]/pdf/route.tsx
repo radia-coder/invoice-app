@@ -68,6 +68,7 @@ export async function GET(
   let ytdGrossIncome = 0
   let ytdNetPay = 0
   let ytdCredit = 0
+  let ytdCreditPayback = 0
 
   ytdInvoices.forEach((ytdInvoice) => {
     const totals = calculateInvoiceTotals({
@@ -85,6 +86,7 @@ export async function GET(
       const amount = credit.amount || 0
       return amount < 0 ? sum + Math.abs(amount) : sum
     }, 0)
+    ytdCreditPayback += ytdInvoice.credit_payback || 0
   })
 
   const invoiceData: InvoiceData = {
@@ -97,7 +99,8 @@ export async function GET(
     credits: invoice.credits,
     ytdGrossIncome,
     ytdNetPay,
-    ytdCredit
+    ytdCredit,
+    ytdCreditPayback
   }
 
   const latestUpdatedAt = ytdInvoices.reduce((latest, ytdInvoice) => {
