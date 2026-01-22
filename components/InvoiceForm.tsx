@@ -1377,8 +1377,94 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                     <button type="button" onClick={() => appendCredit({ credit_type: creditTypes[0]?.name || 'Advance', amount: 0, note: '', direction: 'credit' })} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-red-300 bg-[#301b1f] hover:bg-[#3a2428] transition-colors">
                         <Plus className="w-4 h-4 mr-1" /> Add
                     </button>
+                    <button type="button" onClick={() => setShowNewCreditTypeInput(true)} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-red-300 bg-[#301b1f] hover:bg-[#3a2428] transition-colors">
+                        <Plus className="w-4 h-4 mr-1" /> New Type
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteCreditTypeInput(true)}
+                      className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-red-300 bg-[#301b1f] hover:bg-[#3a2428] transition-colors"
+                      title="Delete custom credit type"
+                    >
+                      <Trash className="w-4 h-4" />
+                    </button>
                 </div>
             </div>
+
+              {/* New Credit Type Input for Credit (Deducted) */}
+              {showNewCreditTypeInput && (
+                <div className="p-4 bg-zinc-800 rounded-lg border border-zinc-700">
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="text"
+                      value={newCreditTypeName}
+                      onChange={(e) => setNewCreditTypeName(e.target.value)}
+                      placeholder="e.g., Cash Advance, Fuel Advance"
+                      className="flex-1 border-zinc-600 bg-zinc-700 text-white placeholder-zinc-400 rounded-lg shadow-sm border p-2.5 sm:text-sm focus:ring-2 focus:ring-red-500"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleCreateNewCreditType();
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCreateNewCreditType}
+                      disabled={creatingCreditType}
+                      className="px-4 py-2.5 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 disabled:opacity-50 transition-colors"
+                    >
+                      {creatingCreditType ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowNewCreditTypeInput(false);
+                        setNewCreditTypeName('');
+                      }}
+                      className="px-4 py-2.5 bg-zinc-600 text-white rounded-lg text-sm hover:bg-zinc-500 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  <p className="mt-2 text-xs text-zinc-400">Enter a new credit type name (e.g., Cash Advance, Fuel Advance)</p>
+                  {creditTypeError ? <p className="mt-2 text-xs text-red-400">{creditTypeError}</p> : null}
+                </div>
+              )}
+
+              {/* Delete Credit Type for Credit (Deducted) */}
+              {showDeleteCreditTypeInput ? (
+                <div className="p-4 bg-zinc-800 rounded-lg border border-zinc-700">
+                  <div className="flex gap-2 items-center">
+                    <select
+                      className="flex-1 border-zinc-600 bg-zinc-700 text-white rounded-lg shadow-sm border p-2.5 sm:text-sm focus:ring-2 focus:ring-red-500"
+                      defaultValue=""
+                      onChange={(event) => {
+                        const selected = creditTypes.find((type) => type.id === Number(event.target.value));
+                        if (selected) {
+                          handleDeleteCreditType(selected);
+                          event.currentTarget.value = '';
+                        }
+                      }}
+                    >
+                      <option value="" disabled>Select custom type to delete</option>
+                      {creditTypes.filter((type) => !type.is_default).map((type) => (
+                        <option key={type.id} value={type.id}>{type.name}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteCreditTypeInput(false)}
+                      className="px-4 py-2.5 bg-zinc-600 text-white rounded-lg text-sm hover:bg-zinc-500 transition-colors"
+                    >
+                      Close
+                    </button>
+                  </div>
+                  {creditTypeMessage ? <p className="mt-2 text-xs text-emerald-400">{creditTypeMessage}</p> : null}
+                  {creditTypeError ? <p className="mt-2 text-xs text-red-400">{creditTypeError}</p> : null}
+                  {deletingCreditTypeId ? <p className="mt-2 text-xs text-zinc-400">Removing...</p> : null}
+                </div>
+              ) : null}
 
             <div className="space-y-2">
                 <div className="grid grid-cols-[160px_110px_1fr_36px] gap-2 text-[11px] uppercase tracking-wider text-zinc-500">
