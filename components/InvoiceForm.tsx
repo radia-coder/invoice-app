@@ -1237,7 +1237,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
             <div className="flex items-center justify-between gap-3 border-b border-zinc-800 pb-3">
                 <h3 className="text-lg font-medium leading-6 text-white">Additions</h3>
                 <div className="flex flex-wrap items-center gap-2">
-                    <button type="button" onClick={() => appendCredit({ credit_type: creditTypes[0]?.name || 'Advance', amount: 0, note: '', direction: 'addition' })} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-emerald-400 bg-emerald-900/20 hover:bg-emerald-900/30 transition-colors">
+                    <button type="button" onClick={() => appendCredit({ credit_type: creditTypes[0]?.name || 'Credit', amount: 0, note: '', direction: 'addition' })} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-emerald-400 bg-emerald-900/20 hover:bg-emerald-900/30 transition-colors">
                         <Plus className="w-4 h-4 mr-1" /> Add
                     </button>
                     <button type="button" onClick={() => setShowNewCreditTypeInput(true)} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-emerald-400 bg-emerald-900/20 hover:bg-emerald-900/30 transition-colors">
@@ -1375,7 +1375,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
             <div className="flex items-center justify-between gap-3 border-b border-red-900/30 pb-3">
                 <h3 className="text-lg font-medium leading-6 text-red-200">Credit (Deducted)</h3>
                 <div className="flex flex-wrap items-center gap-2">
-                    <button type="button" onClick={() => appendCredit({ credit_type: creditTypes[0]?.name || 'Advance', amount: 0, note: '', direction: 'credit' })} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-red-300 bg-[#301b1f] hover:bg-[#3a2428] transition-colors">
+                    <button type="button" onClick={() => appendCredit({ credit_type: creditTypes[0]?.name || 'Credit', amount: 0, note: '', direction: 'credit' })} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-red-300 bg-[#301b1f] hover:bg-[#3a2428] transition-colors">
                         <Plus className="w-4 h-4 mr-1" /> Add
                     </button>
                     <button type="button" onClick={() => setShowNewCreditTypeInput(true)} className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-red-300 bg-[#301b1f] hover:bg-[#3a2428] transition-colors">
