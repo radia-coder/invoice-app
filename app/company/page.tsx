@@ -74,7 +74,7 @@ export default async function CompanyPage({
       </div>
       <CompanyForm company={{
         ...company,
-        invoice_template: company.invoice_template as 'classic' | 'modern',
+        invoice_template: company.invoice_template as 'classic' | 'modern' | 'mh',
         auto_deduction_base: (company.auto_deduction_base || 'YTD_INSURANCE') as 'YTD_INSURANCE'
       }} />
       <CompanyDriversManager

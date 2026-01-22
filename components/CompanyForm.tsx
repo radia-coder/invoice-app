@@ -12,7 +12,7 @@ interface CompanyFormData {
   phone?: string | null;
   logo_url?: string | null;
   brand_color?: string | null;
-  invoice_template: 'classic' | 'modern';
+  invoice_template: 'classic' | 'modern' | 'mh';
   default_percent: number;
   default_tax_percent: number;
   factoring_rate: number;
@@ -122,6 +122,7 @@ export default function CompanyForm({ company }: CompanyFormProps) {
           <select {...register('invoice_template')} className="mt-1 block w-full rounded-lg border-zinc-700 bg-zinc-800 text-white shadow-sm border p-2.5">
             <option value="classic">Classic</option>
             <option value="modern">Modern</option>
+            <option value="mh">MH</option>
           </select>
         </div>
         <div>

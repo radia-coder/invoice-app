@@ -41,6 +41,7 @@ export interface InvoiceData {
   };
   loads: Array<{
     load_ref?: string | null;
+    vendor?: string | null;
     from_location: string;
     to_location: string;
     load_date: string | Date;
@@ -66,6 +67,8 @@ export interface InvoiceData {
   ytdGrossIncome?: number;
   ytdNetPay?: number;
   ytdCredit?: number;
+  ytdAdditions?: number;
+  ytdFixedDed?: number;
   ytdCreditPayback?: number;
   credit_payback?: number | null;
 }
@@ -203,6 +206,221 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
         <span class="text-red-600">- ${formatCurrency(Math.abs(c.amount), currency)}</span>
     </div>
   `).join('');
+
+  if (template === 'mh') {
+    const statementDate = formatDate(data.invoice_date, 'MM/dd/yyyy');
+    const periodStart = formatDate(data.week_start, 'MM/dd/yyyy');
+    const periodEnd = formatDate(data.week_end, 'MM/dd/yyyy');
+    const checkDate = data.due_date ? formatDate(data.due_date, 'MM/dd/yyyy') : statementDate;
+    const showYtd = !isCompanyDriver && data.ytdGrossIncome !== undefined && data.ytdNetPay !== undefined;
+    const ytdGrossIncome = data.ytdGrossIncome ?? 0;
+    const ytdNetPay = data.ytdNetPay ?? 0;
+    const ytdCredit = data.ytdCredit ?? 0;
+    const ytdAdditions = data.ytdAdditions ?? 0;
+    const ytdFixedDed = data.ytdFixedDed ?? 0;
+    const ytdCreditPayback = data.ytdCreditPayback ?? 0;
+    const outstandingCredit = Math.max(0, ytdCredit - ytdCreditPayback);
+
+    const formatSigned = (amount: number) => {
+      if (!Number.isFinite(amount)) return formatCurrency(0, currency);
+      return amount < 0
+        ? `(${formatCurrency(Math.abs(amount), currency)})`
+        : formatCurrency(amount, currency);
+    };
+
+    const summaryRows = [
+      {
+        label: 'Earnings',
+        value: totals.gross,
+        ytdLabel: 'YTD Earnings',
+        ytdValue: ytdGrossIncome,
+        format: 'plain'
+      },
+      {
+        label: 'Advances',
+        value: totals.credits,
+        ytdLabel: 'YTD Advances',
+        ytdValue: ytdCredit,
+        format: 'deduct'
+      },
+      {
+        label: 'Reimbursements',
+        value: totals.additions,
+        ytdLabel: 'YTD Reimbursements',
+        ytdValue: ytdAdditions,
+        format: 'plain'
+      },
+      {
+        label: 'Deductions',
+        value: totals.fixedDed,
+        ytdLabel: 'YTD Deductions',
+        ytdValue: ytdFixedDed,
+        format: 'deduct'
+      },
+      {
+        label: 'Other Pay',
+        value: 0,
+        ytdLabel: 'YTD Other Pay',
+        ytdValue: 0,
+        format: 'plain'
+      },
+      {
+        label: 'Net Pay',
+        value: netTotal,
+        ytdLabel: 'YTD Net Pay',
+        ytdValue: ytdNetPay,
+        format: 'net'
+      }
+    ];
+
+    const sectionHeaderStyle = [
+      'background:#6674a8',
+      'color:#ffffff',
+      'font-weight:700',
+      'text-align:center',
+      'font-size:12px',
+      'letter-spacing:0.08em',
+      'padding:6px 8px',
+      'text-transform:uppercase'
+    ].join(';');
+    const tableHeaderStyle = [
+      'background:#e1e8f6',
+      'color:#1f2a56',
+      'font-weight:700',
+      'font-size:11px',
+      'text-transform:uppercase'
+    ].join(';');
+    const cellStyle = 'border:1px solid #cfd6ea;padding:6px 6px;font-size:11px;';
+    const labelCellStyle = `${cellStyle}background:#f3f6fc;color:#1f2a56;font-weight:600;`;
+    const valueCellStyle = `${cellStyle}text-align:right;`;
+
+    const loadRows = data.loads.length === 0
+      ? `<tr><td colspan="8" style="${cellStyle}text-align:center;color:#6b7280;font-style:italic;">No loads recorded</td></tr>`
+      : data.loads.map(load => `
+          <tr>
+            <td style="${cellStyle}">${escapeHtml(load.load_ref) || '-'}</td>
+            <td style="${cellStyle}">${escapeHtml(load.from_location) || '-'}</td>
+            <td style="${cellStyle}">${escapeHtml(load.to_location) || '-'}</td>
+            <td style="${cellStyle}">${escapeHtml(load.vendor || 'Linehaul')}</td>
+            <td style="${valueCellStyle}">${formatCurrency(load.amount || 0, currency)}</td>
+            <td style="${cellStyle}text-align:center;">-</td>
+            <td style="${cellStyle}text-align:center;">-</td>
+            <td style="${valueCellStyle}">${formatCurrency(load.amount || 0, currency)}</td>
+          </tr>
+        `).join('');
+
+    const summaryRowsHtml = summaryRows.map((row) => {
+      const formatValue = (value: number) => {
+        if (row.format === 'deduct') {
+          return formatSigned(-Math.abs(value || 0));
+        }
+        return formatSigned(value);
+      };
+      return `
+        <tr>
+          <td style="${labelCellStyle}">${row.label}</td>
+          <td style="${valueCellStyle}">${formatValue(row.value)}</td>
+          <td style="${labelCellStyle}">${row.ytdLabel}</td>
+          <td style="${valueCellStyle}">${showYtd ? formatValue(row.ytdValue) : '-'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <div class="max-w-4xl mx-auto bg-white p-8 text-sm text-gray-800 font-sans" id="invoice-container">
+        <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
+          <tr>
+            <td style="vertical-align:top;width:60%;">
+              <div style="font-size:16px;font-weight:700;text-transform:uppercase;">${escapeHtml(data.company.name)}</div>
+              <div style="font-size:11px;color:#4b5563;margin-top:4px;">
+                ${companyAddress ? `<div>${escapeHtml(companyAddress)}</div>` : ''}
+                ${companyEmail ? `<div>${escapeHtml(companyEmail)}</div>` : ''}
+                ${data.company.phone ? `<div>${escapeHtml(data.company.phone)}</div>` : ''}
+              </div>
+            </td>
+            <td style="vertical-align:top;width:40%;">
+              <table style="width:100%;border-collapse:collapse;font-size:11px;">
+                <tr>
+                  <td style="padding:2px 0;color:#374151;font-weight:600;">Statement Date:</td>
+                  <td style="padding:2px 0;text-align:right;">${statementDate}</td>
+                </tr>
+                <tr>
+                  <td style="padding:2px 0;color:#374151;font-weight:600;">Period Start:</td>
+                  <td style="padding:2px 0;text-align:right;">${periodStart}</td>
+                </tr>
+                <tr>
+                  <td style="padding:2px 0;color:#374151;font-weight:600;">Period End:</td>
+                  <td style="padding:2px 0;text-align:right;">${periodEnd}</td>
+                </tr>
+                <tr>
+                  <td style="padding:2px 0;color:#374151;font-weight:600;">Check Date:</td>
+                  <td style="padding:2px 0;text-align:right;">${checkDate}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <div style="font-size:11px;margin-bottom:12px;">
+          <span style="font-weight:600;color:#374151;">Driver:</span>
+          <span>${escapeHtml(data.driver.name)}</span>
+        </div>
+
+        <div style="${sectionHeaderStyle}">Load Information</div>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:18px;">
+          <thead>
+            <tr style="${tableHeaderStyle}">
+              <th style="${cellStyle}">Load Number</th>
+              <th style="${cellStyle}">PU</th>
+              <th style="${cellStyle}">DEL</th>
+              <th style="${cellStyle}">Payment Type</th>
+              <th style="${cellStyle}text-align:right;">Load Gross</th>
+              <th style="${cellStyle}text-align:center;">Rate</th>
+              <th style="${cellStyle}text-align:center;">Total Miles</th>
+              <th style="${cellStyle}text-align:right;">Total Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${loadRows}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="7" style="${labelCellStyle}text-align:right;">Total</td>
+              <td style="${valueCellStyle}font-weight:700;">${formatCurrency(totals.gross, currency)}</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <div style="${sectionHeaderStyle}">Summary</div>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:18px;">
+          <tbody>
+            ${summaryRowsHtml}
+          </tbody>
+        </table>
+
+        <div style="${sectionHeaderStyle}">Balances</div>
+        <table style="width:45%;border-collapse:collapse;margin-bottom:18px;">
+          <tbody>
+            <tr>
+              <td style="${labelCellStyle}">Cash Advance</td>
+              <td style="${valueCellStyle}">${formatSigned(-outstandingCredit)}</td>
+            </tr>
+            <tr>
+              <td style="${labelCellStyle}font-weight:700;">Total</td>
+              <td style="${valueCellStyle}font-weight:700;">${formatSigned(-outstandingCredit)}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        ${(data.notes || data.company.footer_note) ? `
+          <div style="border-top:1px solid #e5e7eb;padding-top:10px;font-size:11px;color:#6b7280;">
+            ${data.notes ? `<div style="margin-bottom:6px;"><span style="font-weight:600;">Notes:</span> ${escapeHtml(data.notes)}</div>` : ''}
+            ${data.company.footer_note ? `<div style="font-style:italic;">${escapeHtml(data.company.footer_note)}</div>` : ''}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
 
   return `
     <div class="max-w-4xl mx-auto bg-white p-8 text-sm text-gray-800 font-sans" id="invoice-container">

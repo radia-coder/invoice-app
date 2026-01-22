@@ -40,6 +40,8 @@ const fetchYtdBaseTotals = async ({ driverId, weekEnd, excludeInvoiceId }: YtdBa
   let ytdGrossIncome = 0;
   let ytdNetPay = 0;
   let ytdCredit = 0;
+  let ytdAdditions = 0;
+  let ytdFixedDed = 0;
   let ytdCreditPayback = 0;
 
   ytdInvoices.forEach((invoice) => {
@@ -54,6 +56,8 @@ const fetchYtdBaseTotals = async ({ driverId, weekEnd, excludeInvoiceId }: YtdBa
     });
     ytdGrossIncome += totals.gross;
     ytdNetPay += totals.net;
+    ytdAdditions += totals.additions;
+    ytdFixedDed += totals.fixedDed;
     ytdCredit += (invoice.credits || []).reduce((sum, credit) => {
       const amount = credit.amount || 0;
       return amount < 0 ? sum + Math.abs(amount) : sum;
@@ -61,7 +65,7 @@ const fetchYtdBaseTotals = async ({ driverId, weekEnd, excludeInvoiceId }: YtdBa
     ytdCreditPayback += invoice.credit_payback || 0;
   });
 
-  return { ytdGrossIncome, ytdNetPay, ytdCredit, ytdCreditPayback };
+  return { ytdGrossIncome, ytdNetPay, ytdCredit, ytdAdditions, ytdFixedDed, ytdCreditPayback };
 };
 
 export async function GET(request: Request) {
@@ -167,6 +171,8 @@ export async function POST(request: Request) {
     ytdGrossIncome: baseTotals.ytdGrossIncome + currentTotals.gross,
     ytdNetPay: baseTotals.ytdNetPay + currentTotals.net,
     ytdCredit: baseTotals.ytdCredit + currentCredits,
+    ytdAdditions: baseTotals.ytdAdditions + currentTotals.additions,
+    ytdFixedDed: baseTotals.ytdFixedDed + currentTotals.fixedDed,
     ytdCreditPayback: baseTotals.ytdCreditPayback + currentCreditPayback
   });
 }

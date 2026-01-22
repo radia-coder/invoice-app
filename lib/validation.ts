@@ -75,7 +75,7 @@ export const companyUpdateSchema = z.object({
   phone: z.string().optional().nullable(),
   logo_url: z.string().url().optional().nullable(),
   brand_color: z.string().optional().nullable(),
-  invoice_template: z.enum(['classic', 'modern']).default('classic'),
+  invoice_template: z.enum(['classic', 'modern', 'mh']).default('classic'),
   default_percent: z.number().finite().min(0).max(100),
   default_tax_percent: z.number().finite().min(0).max(100),
   default_currency: z.string().min(3).max(3).default('USD'),

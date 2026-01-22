@@ -149,7 +149,14 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
   const [creditTypeError, setCreditTypeError] = useState('');
   const [showEditNetPay, setShowEditNetPay] = useState(false);
   const [editNetPayValue, setEditNetPayValue] = useState('');
-  const [ytdTotals, setYtdTotals] = useState<{ gross: number; net: number; credit: number; creditPayback: number } | null>(null);
+  const [ytdTotals, setYtdTotals] = useState<{
+    gross: number;
+    net: number;
+    credit: number;
+    additions: number;
+    fixedDed: number;
+    creditPayback: number;
+  } | null>(null);
   const requiredDateMessage = 'Please fill all required dates.';
 
   // Format date helper
@@ -333,6 +340,8 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
           gross: Number(data?.ytdGrossIncome) || 0,
           net: Number(data?.ytdNetPay) || 0,
           credit: Number(data?.ytdCredit) || 0,
+          additions: Number(data?.ytdAdditions) || 0,
+          fixedDed: Number(data?.ytdFixedDed) || 0,
           creditPayback: Number(data?.ytdCreditPayback) || 0
         });
       })
@@ -813,6 +822,8 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
       ytdGrossIncome: ytdTotals?.gross,
       ytdNetPay: ytdTotals?.net,
       ytdCredit: ytdTotals?.credit,
+      ytdAdditions: ytdTotals?.additions,
+      ytdFixedDed: ytdTotals?.fixedDed,
       ytdCreditPayback: ytdTotals?.creditPayback
     };
   };

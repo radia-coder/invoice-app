@@ -230,6 +230,8 @@ export async function POST(request: Request) {
       let ytdGrossIncome = 0
       let ytdNetPay = 0
       let ytdCredit = 0
+      let ytdAdditions = 0
+      let ytdFixedDed = 0
       let ytdCreditPayback = 0
       ytdInvoices.forEach((ytdInvoice) => {
         const totals = calculateInvoiceTotals({
@@ -243,6 +245,8 @@ export async function POST(request: Request) {
         })
         ytdGrossIncome += totals.gross
         ytdNetPay += totals.net
+        ytdAdditions += totals.additions
+        ytdFixedDed += totals.fixedDed
         ytdCredit += (ytdInvoice.credits || []).reduce((sum, credit) => {
           const amount = credit.amount || 0
           return amount < 0 ? sum + Math.abs(amount) : sum
@@ -258,6 +262,8 @@ export async function POST(request: Request) {
         ytdGrossIncome,
         ytdNetPay,
         ytdCredit,
+        ytdAdditions,
+        ytdFixedDed,
         ytdCreditPayback
       })
     } catch (error) {

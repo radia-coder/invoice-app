@@ -77,6 +77,9 @@ export async function GET(
   let ytdGrossIncome = 0;
   let ytdNetPay = 0;
   let ytdCredit = 0;
+  let ytdAdditions = 0;
+  let ytdFixedDed = 0;
+  let ytdCreditPayback = 0;
   ytdInvoices.forEach((ytdInvoice) => {
     const totals = calculateInvoiceTotals({
       loads: ytdInvoice.loads,
@@ -89,10 +92,13 @@ export async function GET(
     });
     ytdGrossIncome += totals.gross;
     ytdNetPay += totals.net;
+    ytdAdditions += totals.additions;
+    ytdFixedDed += totals.fixedDed;
     ytdCredit += (ytdInvoice.credits || []).reduce((sum, credit) => {
       const amount = credit.amount || 0;
       return amount < 0 ? sum + Math.abs(amount) : sum;
     }, 0);
+    ytdCreditPayback += ytdInvoice.credit_payback || 0;
   });
 
   const etag = `W/"invoice-${invoice.id}-${latestUpdatedAt.getTime()}"`;
@@ -127,7 +133,10 @@ export async function GET(
       updated_at: latestUpdatedAt,
       ytdGrossIncome,
       ytdNetPay,
-      ytdCredit
+      ytdCredit,
+      ytdAdditions,
+      ytdFixedDed,
+      ytdCreditPayback
     });
 
     return new NextResponse(pdfBuffer as BodyInit, {
