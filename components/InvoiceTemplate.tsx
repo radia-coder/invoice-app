@@ -295,7 +295,7 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
     const valueCellStyle = `${cellStyle}text-align:right;`;
 
     const loadRows = data.loads.length === 0
-      ? `<tr><td colspan="8" style="${cellStyle}text-align:center;color:#6b7280;font-style:italic;">No loads recorded</td></tr>`
+      ? `<tr><td colspan="6" style="${cellStyle}text-align:center;color:#6b7280;font-style:italic;">No loads recorded</td></tr>`
       : data.loads.map(load => `
           <tr>
             <td style="${cellStyle}">${escapeHtml(load.load_ref) || '-'}</td>
@@ -303,8 +303,6 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
             <td style="${cellStyle}">${escapeHtml(load.to_location) || '-'}</td>
             <td style="${cellStyle}">${escapeHtml(load.vendor || 'Linehaul')}</td>
             <td style="${valueCellStyle}">${formatCurrency(load.amount || 0, currency)}</td>
-            <td style="${cellStyle}text-align:center;">-</td>
-            <td style="${cellStyle}text-align:center;">-</td>
             <td style="${valueCellStyle}">${formatCurrency(load.amount || 0, currency)}</td>
           </tr>
         `).join('');
@@ -375,8 +373,6 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
               <th style="${cellStyle}">DEL</th>
               <th style="${cellStyle}">Payment Type</th>
               <th style="${cellStyle}text-align:right;">Load Gross</th>
-              <th style="${cellStyle}text-align:center;">Rate</th>
-              <th style="${cellStyle}text-align:center;">Total Miles</th>
               <th style="${cellStyle}text-align:right;">Total Amount</th>
             </tr>
           </thead>
@@ -385,8 +381,50 @@ export const generateInvoiceHTML = (data: InvoiceData) => {
           </tbody>
           <tfoot>
             <tr>
-              <td colspan="7" style="${labelCellStyle}text-align:right;">Total</td>
+              <td colspan="5" style="${labelCellStyle}text-align:right;">Total</td>
               <td style="${valueCellStyle}font-weight:700;">${formatCurrency(totals.gross, currency)}</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <div style="${sectionHeaderStyle}">Adjustments</div>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:18px;">
+          <thead>
+            <tr style="${tableHeaderStyle}">
+              <th style="${cellStyle}">Deduction Type</th>
+              <th style="${cellStyle}">Description</th>
+              <th style="${cellStyle}text-align:center;">Quantity</th>
+              <th style="${cellStyle}text-align:right;">Rate</th>
+              <th style="${cellStyle}text-align:right;">Total Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${displayedDeductions.length === 0 && displayedCredits.length === 0
+              ? `<tr><td colspan="5" style="${cellStyle}text-align:center;color:#6b7280;font-style:italic;">No adjustments</td></tr>`
+              : ''}
+            ${displayedDeductions.map(d => `
+              <tr>
+                <td style="${cellStyle}">${escapeHtml(d.deduction_type)}</td>
+                <td style="${cellStyle}">${d.note ? escapeHtml(d.note) : '-'}</td>
+                <td style="${cellStyle}text-align:center;">1</td>
+                <td style="${valueCellStyle}">${formatCurrency(d.amount, currency)}</td>
+                <td style="${valueCellStyle}">${formatSigned(-d.amount)}</td>
+              </tr>
+            `).join('')}
+            ${displayedCredits.map(c => `
+              <tr>
+                <td style="${cellStyle}">${escapeHtml(c.credit_type)}</td>
+                <td style="${cellStyle}">${c.note ? escapeHtml(c.note) : '-'}</td>
+                <td style="${cellStyle}text-align:center;">1</td>
+                <td style="${valueCellStyle}">${formatCurrency(Math.abs(c.amount), currency)}</td>
+                <td style="${valueCellStyle}">${formatSigned(c.amount)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="4" style="${labelCellStyle}text-align:right;">Total</td>
+              <td style="${valueCellStyle}font-weight:700;color:#dc2626;">${formatSigned(-(totals.fixedDed + totals.credits))}</td>
             </tr>
           </tfoot>
         </table>
