@@ -224,9 +224,13 @@ export async function getInvoicePdfBuffer(
 
     const buffer = Buffer.from(pdfBuffer);
 
-    console.log('Saving PDF to cache...');
-    await fs.mkdir(PDF_DIR, { recursive: true });
-    await fs.writeFile(pdfPath, buffer);
+    try {
+      console.log('Saving PDF to cache...');
+      await fs.mkdir(PDF_DIR, { recursive: true });
+      await fs.writeFile(pdfPath, buffer);
+    } catch (cacheError) {
+      console.warn('Failed to cache PDF:', cacheError);
+    }
 
     console.log(`PDF generated successfully for invoice ${invoice.id}`);
     return buffer;
