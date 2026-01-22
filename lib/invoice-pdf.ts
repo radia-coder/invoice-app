@@ -174,47 +174,74 @@ export async function getInvoicePdfBuffer(
   try {
     const stats = await fs.stat(pdfPath);
     if (stats.mtimeMs >= invoice.updated_at.getTime()) {
+      console.log(`Using cached PDF for invoice ${invoice.id}`);
       return await fs.readFile(pdfPath);
     }
   } catch {
     // Cache miss, continue to generate.
   }
 
-  const logoDataUrl = await getLogoDataUrl(invoice.company?.logo_url);
-  const invoiceWithLogo: InvoiceData = logoDataUrl
-    ? {
-        ...invoice,
-        company: {
-          ...invoice.company,
-          logo_url: logoDataUrl,
-        },
-      }
-    : invoice;
+  console.log(`Generating PDF for invoice ${invoice.id}...`);
 
-  const html = buildInvoiceHtml(invoiceWithLogo);
-  const browser = await getBrowser();
-  const page = await browser.newPage();
-
+  let page = null;
   try {
+    const logoDataUrl = await getLogoDataUrl(invoice.company?.logo_url);
+    const invoiceWithLogo: InvoiceData = logoDataUrl
+      ? {
+          ...invoice,
+          company: {
+            ...invoice.company,
+            logo_url: logoDataUrl,
+          },
+        }
+      : invoice;
+
+    const html = buildInvoiceHtml(invoiceWithLogo);
+
+    console.log('Launching browser...');
+    const browser = await getBrowser();
+
+    console.log('Creating new page...');
+    page = await browser.newPage();
+
+    console.log('Setting viewport and loading content...');
     await page.setViewport({ width: A4_WIDTH_PX, height: A4_HEIGHT_PX, deviceScaleFactor: 1 });
-    await page.setContent(html, { waitUntil: 'load', timeout: 15000 });
+    await page.setContent(html, { waitUntil: 'load', timeout: 30000 });
     await page.emulateMediaType('screen');
+
+    console.log('Calculating dimensions...');
     const contentHeight = await getInvoiceContentHeight(page);
     const scale = computePdfScale(contentHeight);
+
+    console.log('Generating PDF...');
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
       margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' },
-      scale
+      scale,
+      timeout: 30000
     });
 
     const buffer = Buffer.from(pdfBuffer);
 
+    console.log('Saving PDF to cache...');
     await fs.mkdir(PDF_DIR, { recursive: true });
     await fs.writeFile(pdfPath, buffer);
 
+    console.log(`PDF generated successfully for invoice ${invoice.id}`);
     return buffer;
+  } catch (error) {
+    console.error(`PDF generation failed for invoice ${invoice.id}:`, error);
+    throw new Error(
+      `PDF generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
   } finally {
-    await page.close();
+    if (page) {
+      try {
+        await page.close();
+      } catch (closeError) {
+        console.error('Failed to close page:', closeError);
+      }
+    }
   }
 }
