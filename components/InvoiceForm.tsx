@@ -1350,7 +1350,8 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                                   <option value="Reimbursement">Reimbursement</option>
                                   <option value="Detention">Detention</option>
                                   <option value="Layover">Layover</option>
-                                <option value="Other">Other</option>
+                                  <option value="Credit">Credit</option>
+                                  <option value="Other">Other</option>
                               </>
                             )}
                           </select>
@@ -1488,6 +1489,7 @@ export default function InvoiceForm({ companies, initialData }: InvoiceFormProps
                                 <option value="Reimbursement">Reimbursement</option>
                                 <option value="Detention">Detention</option>
                                 <option value="Layover">Layover</option>
+                                <option value="Credit">Credit</option>
                                 <option value="Other">Other</option>
                               </>
                             )}
