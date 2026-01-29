@@ -51,28 +51,70 @@ type InvoicePdfInput = InvoiceData & {
   updated_at: Date;
 };
 
+const launchBrowser = async (): Promise<Browser> => {
+  const args = ['--disable-dev-shm-usage', '--disable-gpu'];
+  if (process.env.PUPPETEER_NO_SANDBOX === 'true') {
+    args.push('--no-sandbox', '--disable-setuid-sandbox');
+  }
+
+  const browser = await puppeteer.launch({
+    headless: true,
+    args,
+  });
+
+  browser.on('disconnected', () => {
+    const globalWithBrowser = globalThis as typeof globalThis & {
+      __invoicePdfBrowserPromise?: Promise<Browser>;
+    };
+    delete globalWithBrowser.__invoicePdfBrowserPromise;
+  });
+
+  return browser;
+};
+
+const resetBrowser = async (reason?: string) => {
+  if (reason) {
+    console.warn(`[PDF] Resetting browser: ${reason}`);
+  }
+
+  const globalWithBrowser = globalThis as typeof globalThis & {
+    __invoicePdfBrowserPromise?: Promise<Browser>;
+  };
+
+  const existing = globalWithBrowser.__invoicePdfBrowserPromise;
+  delete globalWithBrowser.__invoicePdfBrowserPromise;
+
+  if (!existing) return;
+
+  try {
+    const browser = await existing;
+    if (browser.isConnected()) {
+      await browser.close();
+    }
+  } catch {
+    // Ignore failures during cleanup.
+  }
+};
+
 const getBrowser = async (): Promise<Browser> => {
   const globalWithBrowser = globalThis as typeof globalThis & {
     __invoicePdfBrowserPromise?: Promise<Browser>;
   };
 
   if (!globalWithBrowser.__invoicePdfBrowserPromise) {
-    const args = ['--disable-dev-shm-usage', '--disable-gpu'];
-    if (process.env.PUPPETEER_NO_SANDBOX === 'true') {
-      args.push('--no-sandbox', '--disable-setuid-sandbox');
-    }
-
-    globalWithBrowser.__invoicePdfBrowserPromise = puppeteer.launch({
-      headless: true,
-      args,
-    });
-
+    globalWithBrowser.__invoicePdfBrowserPromise = launchBrowser();
     globalWithBrowser.__invoicePdfBrowserPromise.catch(() => {
       delete globalWithBrowser.__invoicePdfBrowserPromise;
     });
   }
 
-  return globalWithBrowser.__invoicePdfBrowserPromise;
+  const browser = await globalWithBrowser.__invoicePdfBrowserPromise;
+  if (!browser.isConnected()) {
+    await resetBrowser('Browser disconnected before use');
+    return getBrowser();
+  }
+
+  return browser;
 };
 
 const buildInvoiceHtml = (invoiceData: InvoiceData) => {
@@ -166,41 +208,17 @@ const getLogoDataUrl = async (logoUrl: string | null | undefined) => {
   }
 };
 
-export async function getInvoicePdfBuffer(
-  invoice: InvoicePdfInput
-): Promise<Buffer> {
-  const pdfPath = path.join(PDF_DIR, `${invoice.id}.pdf`);
+const isConnectionClosedError = (error: unknown) => {
+  if (!error || typeof error !== 'object') return false;
+  const maybeError = error as Error;
+  if (maybeError.name === 'ConnectionClosedError') return true;
+  return /connection closed/i.test(maybeError.message || '');
+};
 
+const generatePdfBuffer = async (html: string) => {
+  const browser = await getBrowser();
+  let page: Page | null = null;
   try {
-    const stats = await fs.stat(pdfPath);
-    if (stats.mtimeMs >= invoice.updated_at.getTime()) {
-      console.log(`Using cached PDF for invoice ${invoice.id}`);
-      return await fs.readFile(pdfPath);
-    }
-  } catch {
-    // Cache miss, continue to generate.
-  }
-
-  console.log(`Generating PDF for invoice ${invoice.id}...`);
-
-  let page = null;
-  try {
-    const logoDataUrl = await getLogoDataUrl(invoice.company?.logo_url);
-    const invoiceWithLogo: InvoiceData = logoDataUrl
-      ? {
-          ...invoice,
-          company: {
-            ...invoice.company,
-            logo_url: logoDataUrl,
-          },
-        }
-      : invoice;
-
-    const html = buildInvoiceHtml(invoiceWithLogo);
-
-    console.log('Launching browser...');
-    const browser = await getBrowser();
-
     console.log('Creating new page...');
     page = await browser.newPage();
 
@@ -222,7 +240,67 @@ export async function getInvoicePdfBuffer(
       timeout: 30000
     });
 
-    const buffer = Buffer.from(pdfBuffer);
+    return Buffer.from(pdfBuffer);
+  } finally {
+    if (page) {
+      try {
+        await page.close();
+      } catch (closeError) {
+        console.error('Failed to close page:', closeError);
+      }
+    }
+  }
+};
+
+export async function getInvoicePdfBuffer(
+  invoice: InvoicePdfInput
+): Promise<Buffer> {
+  const pdfPath = path.join(PDF_DIR, `${invoice.id}.pdf`);
+
+  try {
+    const stats = await fs.stat(pdfPath);
+    if (stats.mtimeMs >= invoice.updated_at.getTime()) {
+      console.log(`Using cached PDF for invoice ${invoice.id}`);
+      return await fs.readFile(pdfPath);
+    }
+  } catch {
+    // Cache miss, continue to generate.
+  }
+
+  console.log(`Generating PDF for invoice ${invoice.id}...`);
+
+  try {
+    const logoDataUrl = await getLogoDataUrl(invoice.company?.logo_url);
+    const invoiceWithLogo: InvoiceData = logoDataUrl
+      ? {
+          ...invoice,
+          company: {
+            ...invoice.company,
+            logo_url: logoDataUrl,
+          },
+        }
+      : invoice;
+
+    const html = buildInvoiceHtml(invoiceWithLogo);
+    let buffer: Buffer | null = null;
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        console.log('Launching browser...');
+        buffer = await generatePdfBuffer(html);
+        break;
+      } catch (error) {
+        if (attempt === 0 && isConnectionClosedError(error)) {
+          await resetBrowser('Connection closed during PDF generation');
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    if (!buffer) {
+      throw new Error('PDF generation failed: Unknown error');
+    }
 
     try {
       console.log('Saving PDF to cache...');
@@ -239,13 +317,5 @@ export async function getInvoicePdfBuffer(
     throw new Error(
       `PDF generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
-  } finally {
-    if (page) {
-      try {
-        await page.close();
-      } catch (closeError) {
-        console.error('Failed to close page:', closeError);
-      }
-    }
   }
 }
