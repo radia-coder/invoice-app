@@ -46,7 +46,11 @@ log_error() {
 
 # Load environment variables
 if [ -f "$PROJECT_DIR/.env" ]; then
-    export $(grep -v '^#' "$PROJECT_DIR/.env" | xargs)
+    # Load .env safely (handles spaces like "Name <email>")
+    set -a
+    # shellcheck disable=SC1090
+    . "$PROJECT_DIR/.env"
+    set +a
     log_info "Loaded environment variables from .env"
 else
     log_error ".env file not found at $PROJECT_DIR/.env"
