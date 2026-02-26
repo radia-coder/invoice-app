@@ -95,6 +95,7 @@ export const driverContactSchema = z.object({
 export const driverCreateSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   company_id: z.number().int(),
+  type: z.enum(['Company Driver', 'Owner-Operator']).default('Company Driver'),
   truck_number: z.string().min(1).max(31).optional().nullable(),
   email: z.string().email().optional().nullable(),
   whatsapp_number: z.string().optional().nullable()

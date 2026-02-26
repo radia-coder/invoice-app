@@ -34,6 +34,7 @@ export default function CompanyDriversManager({
 }: CompanyDriversManagerProps) {
   const router = useRouter();
   const [createName, setCreateName] = useState('');
+  const [createType, setCreateType] = useState('Company Driver');
   const [createEmail, setCreateEmail] = useState('');
   const [createPhone, setCreatePhone] = useState('');
   const [createTruckNumber, setCreateTruckNumber] = useState('');
@@ -102,6 +103,7 @@ export default function CompanyDriversManager({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: createName.trim(),
+          type: createType,
           email: createEmail.trim() || null,
           whatsapp_number: createPhone.trim() || null,
           truck_number: createTruckNumber.trim() || null,
@@ -117,6 +119,7 @@ export default function CompanyDriversManager({
 
       setCreateMessage('Driver created.');
       setCreateName('');
+      setCreateType('Company Driver');
       setCreateEmail('');
       setCreatePhone('');
       setCreateTruckNumber('');
@@ -248,6 +251,17 @@ export default function CompanyDriversManager({
               onChange={(event) => setCreateName(event.target.value)}
               className="mt-1 block w-full rounded-lg border-zinc-700 bg-zinc-800 text-white shadow-sm border p-2.5 focus:ring-2 focus:ring-[#7a67e7] focus:border-transparent"
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-zinc-300">Driver Type</label>
+            <select
+              value={createType}
+              onChange={(event) => setCreateType(event.target.value)}
+              className="mt-1 block w-full rounded-lg border-zinc-700 bg-zinc-800 text-white shadow-sm border p-2.5"
+            >
+              <option value="Company Driver">Company Driver</option>
+              <option value="Owner-Operator">Owner-Operator</option>
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-zinc-300">Company</label>

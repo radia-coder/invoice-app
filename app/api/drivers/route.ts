@@ -62,6 +62,7 @@ export async function POST(request: Request) {
   const parsed = driverCreateSchema.safeParse({
     name: body?.name,
     company_id: parsedCompanyId,
+    type: body?.type ?? 'Company Driver',
     truck_number: truckNumber || null,
     email: body?.email ?? null,
     whatsapp_number: body?.whatsapp_number ?? null
@@ -91,7 +92,7 @@ export async function POST(request: Request) {
       truck_number: parsed.data.truck_number,
       email: parsed.data.email,
       whatsapp_number: parsed.data.whatsapp_number,
-      type: 'Company Driver'
+      type: parsed.data.type
     }
   })
 
