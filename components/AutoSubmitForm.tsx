@@ -1,6 +1,7 @@
 'use client';
 
-import type { FormEvent, FormHTMLAttributes, ReactNode } from 'react';
+import type { FormHTMLAttributes, ReactNode } from 'react';
+import React from 'react';
 import { useRef } from 'react';
 
 interface AutoSubmitFormProps extends FormHTMLAttributes<HTMLFormElement> {
@@ -10,7 +11,7 @@ interface AutoSubmitFormProps extends FormHTMLAttributes<HTMLFormElement> {
 export default function AutoSubmitForm({ children, onChange, ...props }: AutoSubmitFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
 
-  const handleChange = (event: FormEvent<HTMLFormElement>) => {
+  const handleChange = (event: React.ChangeEvent<HTMLFormElement>) => {
     if (onChange) {
       onChange(event);
     }
