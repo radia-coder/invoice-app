@@ -13,7 +13,7 @@ import { logInfo, logWarning, logError } from './logger';
  * 3. Clean up orphaned PDFs (files with no corresponding invoice)
  */
 
-const PDF_DIR = path.join(process.cwd(), 'storage', 'pdfs');
+const PDF_DIR = process.env.PDF_STORAGE_PATH ?? path.join(process.env.STORAGE_PATH ?? path.join(process.cwd(), 'storage'), 'pdfs');
 const DEFAULT_RETENTION_DAYS = 90; // Keep PDFs for 90 days by default
 
 export interface CleanupOptions {

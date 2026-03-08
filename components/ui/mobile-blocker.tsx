@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 
 export function MobileBlocker({ children }: { children: React.ReactNode }) {
   const [isMobile, setIsMobile] = useState(false);
-  const [isChecking, setIsChecking] = useState(true);
+  const [isChecking, setIsChecking] = useState(false);
 
   useEffect(() => {
     const checkDevice = () => {
@@ -21,14 +21,6 @@ export function MobileBlocker({ children }: { children: React.ReactNode }) {
     window.addEventListener('resize', checkDevice);
     return () => window.removeEventListener('resize', checkDevice);
   }, []);
-
-  if (isChecking) {
-    return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-        <div className="animate-pulse text-gray-400">Loading...</div>
-      </div>
-    );
-  }
 
   if (isMobile) {
     return (

@@ -5,6 +5,7 @@ import { getSessionUser } from '@/lib/auth';
 import { FloatingHeader } from '@/components/ui/floating-header';
 import AppContainer from '@/components/ui/app-container';
 import { MobileBlocker } from '@/components/ui/mobile-blocker';
+import { UpdateToast } from '@/components/ui/update-toast';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -28,6 +29,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.className} bg-zinc-950 min-h-screen text-gray-100`}>
+        <UpdateToast />
         <MobileBlocker>
           {user && (
             <div className="pt-4">

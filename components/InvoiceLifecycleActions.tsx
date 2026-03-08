@@ -100,12 +100,17 @@ export default function InvoiceLifecycleActions({
     }
   };
 
+  const isElectron = typeof window !== 'undefined' && (window as any).electronApp?.isElectron;
+
   const openWhatsapp = () => {
     if (driverWhatsappNumber) {
       const digits = driverWhatsappNumber.replace(/\D/g, '');
       const text = shareMessage || `Invoice ${invoiceNumber || ''}`.trim();
-      const url = `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
-      window.open(url, '_blank');
+      if (isElectron) {
+        (window as any).electronApp.openWhatsApp(driverWhatsappNumber, null, text);
+      } else {
+        window.open(`https://wa.me/${digits}?text=${encodeURIComponent(text)}`, '_blank');
+      }
       return;
     }
     if (driverWhatsappLink) {

@@ -5,6 +5,7 @@ import { useState } from 'react';
 interface InvoiceWhatsappShareProps {
   invoiceId: number;
   invoiceNumber?: string | null;
+  weekEnd?: Date | null;
   driverWhatsappNumber?: string | null;
   driverWhatsappLink?: string | null;
 }
@@ -26,6 +27,7 @@ function normalizeLink(link: string) {
 export default function InvoiceWhatsappShare({
   invoiceId,
   invoiceNumber,
+  weekEnd,
   driverWhatsappNumber,
   driverWhatsappLink
 }: InvoiceWhatsappShareProps) {
@@ -33,6 +35,7 @@ export default function InvoiceWhatsappShare({
   const [shareUrl, setShareUrl] = useState('');
   const [whatsappUrl, setWhatsappUrl] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const hasNumber = Boolean(driverWhatsappNumber && driverWhatsappNumber.replace(/\D/g, ''));
 
   const ensureShareLink = async () => {
@@ -67,24 +70,45 @@ export default function InvoiceWhatsappShare({
     }
   };
 
+  const isElectron = typeof window !== 'undefined' && (window as any).electronApp?.isElectron;
+
+  const formatMessage = () => {
+    if (weekEnd) {
+      const d = new Date(weekEnd);
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      return `INVOICE - ${mm}/${dd}/${yyyy}`;
+    }
+    return invoiceNumber ? `INVOICE - ${invoiceNumber}` : 'INVOICE';
+  };
+
   const sendOnWhatsapp = async () => {
     setLoading(true);
     setError('');
+    setSuccess('');
     try {
       if (!hasNumber || !driverWhatsappNumber) {
         setError('Add a driver WhatsApp number to include the PDF link.');
         return;
       }
-      const url = await ensureShareLink();
-      const baseMessage = `Invoice ${invoiceNumber || ''}`.trim();
-      const message = baseMessage ? `${baseMessage}: ${url}` : url;
-      const whatsapp = buildWhatsappUrl(driverWhatsappNumber, message);
-      if (!whatsapp) {
-        setError('Driver WhatsApp number is invalid.');
-        return;
+
+      if (isElectron) {
+        // Copy PDF to clipboard + open WhatsApp — user presses Cmd+V to attach
+        await (window as any).electronApp.openWhatsApp(driverWhatsappNumber, invoiceId, formatMessage());
+        setSuccess('PDF copied to clipboard! WhatsApp is opening — press Cmd+V to attach the PDF.');
+      } else {
+        // Web: generate a shareable PDF link and open WhatsApp Web
+        const url = await ensureShareLink();
+        const message = `${formatMessage()}: ${url}`;
+        const whatsapp = buildWhatsappUrl(driverWhatsappNumber, message);
+        if (!whatsapp) {
+          setError('Driver WhatsApp number is invalid.');
+          return;
+        }
+        setWhatsappUrl(whatsapp);
+        window.open(whatsapp, '_blank');
       }
-      setWhatsappUrl(whatsapp);
-      window.open(whatsapp, '_blank');
     } catch (e) {
       console.error(e);
       setError(e instanceof Error ? e.message : 'Failed to send on WhatsApp.');
@@ -117,16 +141,26 @@ export default function InvoiceWhatsappShare({
           disabled={loading || !hasNumber}
           className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-60 transition-colors"
         >
-          {loading ? 'Preparing...' : 'Send PDF on WhatsApp'}
+          {loading ? 'Opening...' : 'Send on WhatsApp'}
         </button>
-        <button
-          type="button"
-          onClick={createShare}
-          disabled={loading}
-          className="px-4 py-2 rounded-lg text-sm font-medium text-zinc-300 bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 hover:text-white disabled:opacity-60 transition-colors"
-        >
-          Generate PDF Link
-        </button>
+        {isElectron ? (
+          <button
+            type="button"
+            onClick={() => (window as any).electronApp.showPdfInFinder(invoiceId)}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-zinc-300 bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 hover:text-white transition-colors"
+          >
+            Show PDF in Finder
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={createShare}
+            disabled={loading}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-zinc-300 bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 hover:text-white disabled:opacity-60 transition-colors"
+          >
+            Generate PDF Link
+          </button>
+        )}
       </div>
 
       {shareUrl ? (
@@ -177,6 +211,7 @@ export default function InvoiceWhatsappShare({
         </a>
       ) : null}
 
+      {success ? <p className="text-sm text-emerald-400 font-medium">{success}</p> : null}
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
     </div>
   );

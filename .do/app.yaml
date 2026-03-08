@@ -1,0 +1,47 @@
+name: invoice-app
+region: nyc
+
+services:
+  - name: web
+    github:
+      repo: thecodermusab/invoice-app
+      branch: main
+      deploy_on_push: true
+    build_command: npm run build:next
+    run_command: node .next/standalone/server.js
+    instance_size_slug: basic-xs
+    instance_count: 1
+    http_port: 3000
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        value: "REPLACE_ME"
+        type: SECRET
+      - key: AUTH_SECRET
+        value: "REPLACE_ME"
+        type: SECRET
+      - key: ADMIN_EMAIL
+        value: "REPLACE_ME"
+      - key: ADMIN_PASSWORD
+        value: "REPLACE_ME"
+        type: SECRET
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        value: "REPLACE_ME"
+      - key: SMTP_PASS
+        value: "REPLACE_ME"
+        type: SECRET
+      - key: SMTP_FROM
+        value: "REPLACE_ME"
+      - key: APP_BASE_URL
+        value: "REPLACE_ME"
+      - key: PUPPETEER_NO_SANDBOX
+        value: "true"
+      - key: HOSTNAME
+        value: "0.0.0.0"
+      - key: PORT
+        value: "3000"

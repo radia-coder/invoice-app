@@ -1,0 +1,64 @@
+appId: com.maahir.app
+productName: Maahir
+copyright: Copyright 2026 Maahir
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - electron/dist/**
+  - .next/standalone/**
+  - .next/static/**
+  - prisma/migrations/**
+  - prisma/schema.desktop.prisma
+  - public/**
+  - node_modules/.prisma/**
+  - node_modules/@prisma/client/**
+  - package.json
+
+extraResources:
+  - from: node_modules/puppeteer/.local-chromium
+    to: chromium
+    filter:
+      - "**/*"
+  - from: prisma/schema.desktop.prisma
+    to: schema.desktop.prisma
+  - from: prisma/seed.db
+    to: seed.db
+
+asar: true
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+  category: public.app-category.business
+  icon: build/icon.icns
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+
+dmg:
+  title: Maahir
+  icon: build/icon.icns
+  iconSize: 80
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+
+publish:
+  provider: github
+  owner: YOUR_GITHUB_USERNAME
+  repo: YOUR_REPO_NAME

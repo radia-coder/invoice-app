@@ -159,6 +159,7 @@ export default async function InvoicePage({
         <InvoiceWhatsappShare
           invoiceId={invoice.id}
           invoiceNumber={invoice.invoice_number}
+          weekEnd={weekEndDate}
           driverWhatsappNumber={invoice.driver.whatsapp_number}
           driverWhatsappLink={invoice.driver.whatsapp_link}
         />

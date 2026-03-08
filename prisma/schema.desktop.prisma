@@ -1,0 +1,220 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id              Int       @id @default(autoincrement())
+  name            String
+  address         String?
+  email           String?
+  phone           String?
+  logo_url        String?
+  brand_color     String?
+  invoice_template String   @default("classic")
+  default_percent Float     @default(12.0)
+  default_tax_percent Float @default(0.0)
+  default_currency String   @default("USD")
+  factoring_rate  Float     @default(2.0)
+  dispatch_rate   Float     @default(6.0)
+  auto_deduction_base String @default("YTD_INSURANCE")
+  invoice_prefix  String    @default("INV-")
+  footer_note     String?
+  created_at      DateTime  @default(now())
+
+  drivers         Driver[]
+  invoices        Invoice[]
+  deductionTypes  DeductionType[]
+  creditTypes     CreditType[]
+  users           User[]
+}
+
+model Driver {
+  id                      Int       @id @default(autoincrement())
+  company_id              Int?
+  name                    String
+  truck_number            String?   // e.g., "TRK 007", "TRK 517"
+  type                    String    // "Company Driver" or "Owner-Operator"
+  email                   String?
+  whatsapp_number         String?
+  whatsapp_link           String?
+  address                 String?
+  default_percent_override Float?
+  status                  String    @default("active") // "active", "inactive"
+  created_at              DateTime  @default(now())
+
+  company                 Company?  @relation(fields: [company_id], references: [id], onDelete: SetNull)
+  invoices                Invoice[]
+
+  @@index([company_id])
+  @@index([status])
+  @@index([company_id, status])
+}
+
+model Invoice {
+  id              Int       @id @default(autoincrement())
+  company_id      Int
+  driver_id       Int
+  invoice_number  String    @unique
+  public_token    String?   @unique
+  public_token_expires_at DateTime?
+  week_start      DateTime
+  week_end        DateTime
+  invoice_date    DateTime
+  percent         Float     // The % used for this specific invoice
+  tax_percent     Float     @default(0.0)
+  status          String    @default("draft") // "draft", "sent", "paid"
+  due_date        DateTime?
+  sent_at         DateTime?
+  paid_at         DateTime?
+  notes           String?
+  currency        String    @default("USD")
+  manual_net_pay  Float?
+  credit_payback  Float     @default(0)
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+  last_opened_at  DateTime?
+
+  company         Company   @relation(fields: [company_id], references: [id])
+  driver          Driver    @relation(fields: [driver_id], references: [id])
+  loads           InvoiceLoad[]
+  deductions      InvoiceDeduction[]
+  credits         InvoiceCredit[]
+
+  @@index([company_id])
+  @@index([driver_id])
+  @@index([created_at])
+  @@index([status])
+  @@index([company_id, status])
+  @@index([company_id, created_at])
+  @@index([driver_id, status])
+  @@index([week_start])
+  @@index([invoice_date])
+  @@index([last_opened_at])
+}
+
+model InvoiceLoad {
+  id            Int      @id @default(autoincrement())
+  invoice_id    Int
+  load_ref      String?
+  vendor        String?
+  from_location String
+  to_location   String
+  load_date     DateTime
+  delivery_date DateTime?
+  amount        Float
+
+  invoice       Invoice  @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+
+  @@index([invoice_id])
+  @@index([vendor])
+  @@index([load_date])
+}
+
+model InvoiceDeduction {
+  id             Int       @id @default(autoincrement())
+  invoice_id     Int
+  deduction_type String    // "Fuel", "Toll", "ELD", "Insurance", "Date del", "Other", or custom types
+  amount         Float
+  note           String?
+  deduction_date DateTime? // Used for "Date del" type to store delivery date
+
+  invoice        Invoice @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+
+  @@index([invoice_id])
+  @@index([deduction_type])
+}
+
+model InvoiceCredit {
+  id          Int     @id @default(autoincrement())
+  invoice_id  Int
+  credit_type String  // "Advance", "Bonus", "Reimbursement", "Detention", "Layover", "Other", or custom types
+  amount      Float
+  note        String?
+
+  invoice     Invoice @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+
+  @@index([invoice_id])
+  @@index([credit_type])
+}
+
+model DeductionType {
+  id          Int       @id @default(autoincrement())
+  name        String
+  company_id  Int?      // Optional: if null, it's a global/default type
+  is_default  Boolean   @default(false) // Mark built-in types
+  created_at  DateTime  @default(now())
+
+  company     Company?  @relation(fields: [company_id], references: [id], onDelete: Cascade)
+
+  @@unique([name, company_id]) // Unique per company or globally
+}
+
+model CreditType {
+  id          Int       @id @default(autoincrement())
+  name        String
+  company_id  Int?      // Optional: if null, it's a global/default type
+  is_default  Boolean   @default(false) // Mark built-in types
+  created_at  DateTime  @default(now())
+
+  company     Company?  @relation(fields: [company_id], references: [id], onDelete: Cascade)
+
+  @@unique([name, company_id]) // Unique per company or globally
+  @@index([company_id])
+}
+
+model User {
+  id            Int           @id @default(autoincrement())
+  email         String        @unique
+  password_hash String
+  role          String        @default("admin") // "admin", "viewer", "super_admin"
+  company_id    Int?
+  created_at    DateTime      @default(now())
+
+  company       Company?      @relation(fields: [company_id], references: [id])
+  sessions      UserSession[]
+}
+
+model UserSession {
+  id            Int       @id @default(autoincrement())
+  user_id       Int
+  session_token String    @unique
+  ip_address    String?
+  user_agent    String?   // Full user agent string
+  device_type   String?   // "desktop", "mobile", "tablet"
+  os            String?   // "Windows", "macOS", "iOS", "Android", "Linux"
+  browser       String?   // "Chrome", "Firefox", "Safari", etc.
+  city          String?
+  country       String?
+  is_active     Boolean   @default(true)
+  created_at    DateTime  @default(now())
+  last_active   DateTime  @default(now())
+  expires_at    DateTime
+
+  user          User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([session_token])
+  @@index([is_active])
+}
+
+// Track exports for delta mode
+model ExportLog {
+  id            Int       @id @default(autoincrement())
+  user_id       Int?
+  company_id    Int?
+  export_type   String    // "full", "delta"
+  scope         String    // "all", "company", "driver"
+  driver_ids    String?   // JSON array of driver IDs included
+  exported_at   DateTime  @default(now())
+
+  @@index([company_id])
+  @@index([exported_at])
+}

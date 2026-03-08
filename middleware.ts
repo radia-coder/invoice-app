@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 
 const SESSION_COOKIE_NAME = 'invoice_session';
 
-const PUBLIC_PATHS = ['/login', '/'];
+const PUBLIC_PATHS = ['/login', '/', '/api/health'];
 const PUBLIC_PREFIXES = ['/_next', '/favicon.ico', '/public'];
 const PUBLIC_FILE = /\.(?:png|jpg|jpeg|gif|webp|svg|ico|txt|xml|json|map|woff2?|ttf|eot)$/i;
 
@@ -46,6 +46,10 @@ const verifySessionTokenEdge = async (token: string) => {
 };
 
 export async function middleware(request: NextRequest) {
+  // Electron desktop app bypass — all requests from Electron are pre-authenticated
+  const isElectron = request.headers.get('x-electron-app') === 'true';
+  if (isElectron) return NextResponse.next();
+
   const { pathname } = request.nextUrl;
 
   if (PUBLIC_FILE.test(pathname)) {

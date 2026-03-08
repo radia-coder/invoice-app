@@ -5,8 +5,9 @@ import path from 'path';
 import { generateInvoiceHTML, type InvoiceData } from '@/components/InvoiceTemplate';
 import { invoicePdfStyles } from '@/lib/invoice-pdf-styles';
 
-const PDF_DIR = path.join(process.cwd(), 'storage', 'pdfs');
-const LOGO_CACHE_DIR = path.join(process.cwd(), 'storage', 'logo-cache');
+const STORAGE_BASE = process.env.STORAGE_PATH ?? path.join(process.cwd(), 'storage');
+const PDF_DIR = process.env.PDF_STORAGE_PATH ?? path.join(STORAGE_BASE, 'pdfs');
+const LOGO_CACHE_DIR = path.join(STORAGE_BASE, 'logo-cache');
 const A4_WIDTH_PX = Math.round((210 / 25.4) * 96);
 const A4_HEIGHT_PX = Math.round((297 / 25.4) * 96);
 const PDF_MARGIN_PX = 20;
@@ -249,6 +250,8 @@ const generatePdfBuffer = async (html: string) => {
         console.error('Failed to close page:', closeError);
       }
     }
+    // Close the browser after each PDF so it doesn't sit in RAM while idle.
+    await resetBrowser();
   }
 };
 
