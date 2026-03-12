@@ -34,7 +34,7 @@ export default function CompanyDriversManager({
 }: CompanyDriversManagerProps) {
   const router = useRouter();
   const [createName, setCreateName] = useState('');
-  const [createType, setCreateType] = useState('Company Driver');
+  const [createType, setCreateType] = useState('Owner-Operator');
   const [createEmail, setCreateEmail] = useState('');
   const [createPhone, setCreatePhone] = useState('');
   const [createTruckNumber, setCreateTruckNumber] = useState('');
@@ -119,7 +119,7 @@ export default function CompanyDriversManager({
 
       setCreateMessage('Driver created.');
       setCreateName('');
-      setCreateType('Company Driver');
+      setCreateType('Owner-Operator');
       setCreateEmail('');
       setCreatePhone('');
       setCreateTruckNumber('');
