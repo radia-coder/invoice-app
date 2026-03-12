@@ -47,8 +47,8 @@ RUN npx prisma generate && npx next build && node scripts/copy-standalone-assets
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 ENV PUPPETEER_NO_SANDBOX=true
 ENV NODE_ENV=production
-ENV PORT=8080
+ENV PORT=3000
 
-EXPOSE 8080
+EXPOSE 3000
 
 CMD ["node", ".next/standalone/server.js"]
