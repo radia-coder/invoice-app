@@ -68,5 +68,5 @@
   },
   "prisma": {
     "seed": "node prisma/seed-runner.cjs"
-  },
+  }
 }
