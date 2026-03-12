@@ -2,11 +2,6 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
-  serverExternalPackages: ['@sparticuz/chromium', 'puppeteer-core'],
-  outputFileTracingIncludes: {
-    '/api/invoices/\\[id\\]/pdf': ['./node_modules/@sparticuz/chromium/bin/**'],
-    '/public/invoices/\\[token\\]/pdf': ['./node_modules/@sparticuz/chromium/bin/**'],
-  },
 
   // Enable compression
   compress: true,
