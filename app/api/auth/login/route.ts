@@ -93,7 +93,7 @@ export async function POST(request: Request) {
     response.cookies.set(SESSION_COOKIE_NAME, token, {
       httpOnly: true,
       sameSite: 'strict',
-      secure: true,
+      secure: process.env.NODE_ENV === 'production' && !process.env.ALLOW_HTTP,
       path: '/',
       maxAge: 60 * 60 * 24 * 90 // 90 days
     });
