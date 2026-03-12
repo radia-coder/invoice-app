@@ -67,5 +67,10 @@
   },
   "prisma": {
     "seed": "node prisma/seed-runner.cjs"
+  },
+  "config": {
+    "puppeteer": {
+      "cacheDirectory": ".puppeteer-cache"
+    }
   }
 }

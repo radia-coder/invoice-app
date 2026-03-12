@@ -168,7 +168,7 @@ export async function GET(
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
     return NextResponse.json({
       error: 'Failed to generate PDF',
-      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+      details: errorMessage
     }, { status: 500 })
   }
 }

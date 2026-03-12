@@ -45,3 +45,16 @@ next-env.d.ts
 
 /app/generated/prisma
 /storage/pdfs/*.pdf
+
+# Electron build output (large binaries, not for git)
+/dist/
+
+# Puppeteer chromium cache
+/.puppeteer-cache
+
+# Dev/local files
+prompt.md
+skills-lock.json
+invoice-data-backup.sql
+.agents/
+.claude/
