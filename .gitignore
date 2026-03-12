@@ -51,6 +51,7 @@ next-env.d.ts
 
 # Puppeteer chromium cache
 /.puppeteer-cache
+/.cache/puppeteer
 
 # Dev/local files
 prompt.md
