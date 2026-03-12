@@ -5,6 +5,7 @@
   "main": "electron/dist/main.js",
   "scripts": {
     "dev": "next dev",
+    "postinstall": "npx puppeteer browsers install chrome",
     "prebuild": "prisma generate",
     "build:next": "next build && node scripts/copy-standalone-assets.js",
     "build:electron": "tsc -p tsconfig.electron.json",
@@ -68,9 +69,4 @@
   "prisma": {
     "seed": "node prisma/seed-runner.cjs"
   },
-  "config": {
-    "puppeteer": {
-      "cacheDirectory": ".puppeteer-cache"
-    }
-  }
 }
