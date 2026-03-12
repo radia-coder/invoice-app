@@ -57,7 +57,7 @@ const launchBrowser = async (): Promise<Browser> => {
   const executablePath = await chromium.executablePath();
 
   const browser = await puppeteer.launch({
-    headless: chromium.headless,
+    headless: true,
     executablePath,
     args: chromium.args,
   });
