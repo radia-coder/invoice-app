@@ -53,13 +53,35 @@ type InvoicePdfInput = InvoiceData & {
   updated_at: Date;
 };
 
+const findLocalChrome = (): string | undefined => {
+  const candidates =
+    process.platform === 'darwin'
+      ? ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome']
+      : ['/usr/bin/google-chrome-stable', '/usr/bin/chromium-browser', '/usr/bin/chromium'];
+  const fs = require('fs');
+  return candidates.find((p) => {
+    try { return fs.existsSync(p); } catch { return false; }
+  });
+};
+
 const launchBrowser = async (): Promise<Browser> => {
-  const executablePath = await chromium.executablePath();
+  const isLinux = process.platform === 'linux';
+
+  const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH
+    || (isLinux ? await chromium.executablePath() : findLocalChrome());
+
+  if (!executablePath) {
+    throw new Error('Chrome not found. Install Google Chrome or set PUPPETEER_EXECUTABLE_PATH.');
+  }
+
+  const args = isLinux
+    ? chromium.args
+    : ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'];
 
   const browser = await puppeteer.launch({
     headless: true,
     executablePath,
-    args: chromium.args,
+    args,
   });
 
   browser.on('disconnected', () => {
