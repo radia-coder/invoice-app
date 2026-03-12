@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  serverExternalPackages: ['@sparticuz/chromium', 'puppeteer-core'],
 
   // Enable compression
   compress: true,
