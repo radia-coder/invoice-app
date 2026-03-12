@@ -1,4 +1,5 @@
-import puppeteer, { type Browser, type Page } from 'puppeteer';
+import puppeteer, { type Browser, type Page } from 'puppeteer-core';
+import chromium from '@sparticuz/chromium-min';
 import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
@@ -53,13 +54,20 @@ type InvoicePdfInput = InvoiceData & {
 };
 
 const launchBrowser = async (): Promise<Browser> => {
-  const args = ['--disable-dev-shm-usage', '--disable-gpu'];
-  if (process.env.PUPPETEER_NO_SANDBOX === 'true') {
-    args.push('--no-sandbox', '--disable-setuid-sandbox');
-  }
+  const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH
+    || await chromium.executablePath();
+
+  const args = [
+    ...chromium.args,
+    '--disable-dev-shm-usage',
+    '--disable-gpu',
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+  ];
 
   const browser = await puppeteer.launch({
     headless: true,
+    executablePath,
     args,
   });
 
